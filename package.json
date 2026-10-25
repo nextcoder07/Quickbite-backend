@@ -1,0 +1,25 @@
+{
+  "name": "quickbite-campus-food-marketplace",
+  "version": "1.0.0",
+  "description": "QuickBite: Desktop-based campus food marketplace and ordering system",
+  "scripts": {
+    "backend:build": "mvn clean package -f backend/pom.xml -DskipTests",
+    "backend:test": "mvn test -f backend/pom.xml",
+    "backend:dev": "mvn spring-boot:run -f backend/pom.xml",
+    "frontend:install": "cd frontend && npm install",
+    "frontend:dev": "cd frontend && npm run dev",
+    "frontend:build": "cd frontend && npm run build",
+    "desktop:dev": "cd frontend && npm run electron:dev",
+    "desktop:dist": "cd frontend && npm run dist"
+  },
+  "keywords": [
+    "campus-marketplace",
+    "spring-boot",
+    "react",
+    "electron",
+    "food-ordering",
+    "razorpay"
+  ],
+  "author": "QuickBite Team",
+  "license": "ISC"
+}

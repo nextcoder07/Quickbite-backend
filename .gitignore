@@ -1,0 +1,50 @@
+# Operating System Files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# IDE and Editor Files
+.idea/
+*.iml
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Java and Maven
+backend/target/
+backend/.mvn/
+backend/*.log
+dependency-reduced-pom.xml
+
+# Node and Frontend
+frontend/node_modules/
+node_modules/
+frontend/dist/
+frontend/build/
+frontend/out/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment and Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+serviceAccountKey.json
+firebase-adminsdk.json
+
+# Test and Coverage
+coverage/
+.nyc_output/
+
+# Electron packaging output
+dist/
+release/
