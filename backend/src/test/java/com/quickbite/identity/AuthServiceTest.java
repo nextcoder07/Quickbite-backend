@@ -59,7 +59,7 @@ class AuthServiceTest {
     @Test
     @DisplayName("Should prevent duplicate profile creation for the same identity")
     void testProfileExclusivityEnforcement() {
-        AccountIdentity identity = new AccountIdentity("uid-2", "buyer@campus.edu");
+        AccountIdentity identity = new AccountIdentity(2L, "uid-2", "buyer@campus.edu");
         when(identityRepository.findByFirebaseUid("uid-2")).thenReturn(Optional.of(identity));
         when(userRepository.existsByIdentityId(identity.getId())).thenReturn(true);
 

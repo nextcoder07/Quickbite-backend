@@ -27,6 +27,11 @@ public class AccountIdentity {
     protected AccountIdentity() {}
 
     public AccountIdentity(String firebaseUid, String email) {
+        this(null, firebaseUid, email);
+    }
+
+    public AccountIdentity(Long id, String firebaseUid, String email) {
+        this.id = id;
         this.firebaseUid = Objects.requireNonNull(firebaseUid, "firebaseUid must not be null");
         this.email = Objects.requireNonNull(email, "email must not be null").toLowerCase().trim();
         this.createdAt = Instant.now();

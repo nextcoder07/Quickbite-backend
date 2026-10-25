@@ -59,27 +59,29 @@ public class AuthService {
         // 1. Find or create AccountIdentity
         AccountIdentity identity = identityRepository.findByFirebaseUid(request.firebaseUid())
                 .orElseGet(() -> identityRepository.findByEmailIgnoreCase(normalizedEmail)
-                        .orElseGet(() -> identityRepository.save(new AccountIdentity(request.firebaseUid(), normalizedEmail))));
+                        .orElseGet(() -> identityRepository.saveAndFlush(new AccountIdentity(request.firebaseUid(), normalizedEmail))));
 
         // 2. Enforce strict profile exclusivity
-        assertNoExistingProfile(identity.getId());
+        if (identity.getId() != null) {
+            assertNoExistingProfile(identity.getId());
+        }
 
         Long profileId = null;
         AccountStatus status = AccountStatus.ACTIVE;
 
         switch (request.accountType()) {
             case BUYER -> {
-                User buyer = userRepository.save(new User(identity, request.displayName(), request.phone()));
+                User buyer = userRepository.saveAndFlush(new User(identity, request.displayName(), request.phone()));
                 profileId = buyer.getId();
                 status = buyer.getAccountStatus();
             }
             case DELIVERY_PARTNER -> {
-                DeliveryPartner dp = deliveryPartnerRepository.save(new DeliveryPartner(identity, request.displayName(), request.phone()));
+                DeliveryPartner dp = deliveryPartnerRepository.saveAndFlush(new DeliveryPartner(identity, request.displayName(), request.phone()));
                 profileId = dp.getId();
                 status = dp.getAccountStatus();
             }
             case SHOP_OWNER -> {
-                ShopOwner so = shopOwnerRepository.save(new ShopOwner(identity, request.displayName(), request.phone()));
+                ShopOwner so = shopOwnerRepository.saveAndFlush(new ShopOwner(identity, request.displayName(), request.phone()));
                 profileId = so.getId();
                 status = so.getAccountStatus();
             }
@@ -176,6 +178,9 @@ public class AuthService {
     }
 
     private void assertNoExistingProfile(Long identityId) {
+        if (identityId == null) {
+            return;
+        }
         if (userRepository.existsByIdentityId(identityId) ||
                 deliveryPartnerRepository.existsByIdentityId(identityId) ||
                 shopOwnerRepository.existsByIdentityId(identityId) ||
