@@ -41,7 +41,7 @@ quickbite:
   storage:
     supabase-url: ${SUPABASE_URL:https://example.supabase.co}
     service-key: ${SUPABASE_SERVICE_ROLE_KEY:example_service_role_key}
-    bucket: ${SUPABASE_STORAGE_BUCKET:quickbite-assets}
+    bucket: ${SUPABASE_STORAGE_BUCKET:QuickBite}
   cors:
     allowed-origins:
       - "http://localhost:5173"

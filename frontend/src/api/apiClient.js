@@ -76,6 +76,29 @@ class ApiClient {
   delete(endpoint, headers = {}) {
     return this.request(endpoint, { method: 'DELETE', headers });
   }
+
+  async uploadFile(endpoint, formData, headers = {}) {
+    const url = `${API_BASE_URL}${endpoint}`;
+    const customHeaders = { ...headers };
+    const token = localStorage.getItem('qb_token');
+    if (token) {
+      customHeaders['Authorization'] = `Bearer ${token}`;
+    }
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: customHeaders,
+      body: formData,
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      const errorMessage = data?.message || (data?.error ? `${data.error}: ${data.message || ''}` : `HTTP Error ${response.status}`);
+      const error = new Error(errorMessage);
+      error.status = response.status;
+      error.data = data;
+      throw error;
+    }
+    return data;
+  }
 }
 
 export const api = new ApiClient();

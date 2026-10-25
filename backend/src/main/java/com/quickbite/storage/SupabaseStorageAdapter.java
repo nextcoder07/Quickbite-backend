@@ -24,7 +24,7 @@ public class SupabaseStorageAdapter implements StorageService {
     public SupabaseStorageAdapter(
             @Value("${quickbite.storage.supabase-url:https://example.supabase.co}") String supabaseUrl,
             @Value("${quickbite.storage.service-key:placeholder}") String serviceKey,
-            @Value("${quickbite.storage.bucket:quickbite-assets}") String bucket) {
+            @Value("${quickbite.storage.bucket:QuickBite}") String bucket) {
         this.supabaseUrl = supabaseUrl;
         this.serviceKey = serviceKey;
         this.bucket = bucket;
@@ -53,6 +53,7 @@ public class SupabaseStorageAdapter implements StorageService {
                 String uploadUrl = String.format("%s/storage/v1/object/%s/%s", supabaseUrl, bucket, objectKey);
                 HttpHeaders headers = new HttpHeaders();
                 headers.setBearerAuth(serviceKey);
+                headers.set("apikey", serviceKey);
                 headers.setContentType(MediaType.parseMediaType(contentType));
                 HttpEntity<byte[]> requestEntity = new HttpEntity<>(data, headers);
 
@@ -95,6 +96,7 @@ public class SupabaseStorageAdapter implements StorageService {
                 String deleteUrl = String.format("%s/storage/v1/object/%s/%s", supabaseUrl, bucket, path);
                 HttpHeaders headers = new HttpHeaders();
                 headers.setBearerAuth(serviceKey);
+                headers.set("apikey", serviceKey);
                 restTemplate.exchange(URI.create(deleteUrl), HttpMethod.DELETE, new HttpEntity<>(headers), Void.class);
             } catch (Exception ex) {
                 log.warn("Failed to delete object from Supabase: {}", ex.getMessage());

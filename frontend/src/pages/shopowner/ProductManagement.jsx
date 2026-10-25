@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../api/apiClient';
-import { Plus, Edit2, Trash2, X, Package, AlertCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Package, AlertCircle, Upload } from 'lucide-react';
 
 export const ProductManagement = () => {
   const [products, setProducts] = useState([]);
@@ -17,6 +17,25 @@ export const ProductManagement = () => {
   const [imagePath, setImagePath] = useState('');
   const [available, setAvailable] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await api.uploadFile('/storage/upload?folder=products', formData);
+      if (res?.url) {
+        setImagePath(res.url);
+      }
+    } catch (err) {
+      alert('Upload to Supabase failed: ' + (err.message || 'Please check your connection and storage configuration'));
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const fetchProducts = async () => {
     try {
@@ -264,14 +283,38 @@ export const ProductManagement = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Image URL</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label className="form-label" style={{ marginBottom: 0 }}>Product Image</label>
+                  <label className="btn btn-outline" style={{ cursor: 'pointer', padding: '4px 10px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <Upload size={13} />
+                    {uploading ? 'Uploading...' : 'Upload to Supabase'}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      style={{ display: 'none' }}
+                      disabled={uploading}
+                      onChange={handleFileUpload}
+                    />
+                  </label>
+                </div>
                 <input
                   type="url"
                   className="form-input"
-                  placeholder="https://images.unsplash.com/..."
+                  placeholder="https://... or uploaded image URL"
                   value={imagePath}
                   onChange={(e) => setImagePath(e.target.value)}
                 />
+                {imagePath && (
+                  <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <img
+                      src={imagePath}
+                      alt="Preview"
+                      style={{ width: '60px', height: '45px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)' }}
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Image ready</span>
+                  </div>
+                )}
               </div>
 
               {editingProduct && (

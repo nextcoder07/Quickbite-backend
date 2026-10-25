@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../api/apiClient';
 import { StatusBadge } from '../../components/StatusBadge';
-import { Sliders, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
+import { Sliders, AlertTriangle, CheckCircle2, Clock, Upload } from 'lucide-react';
 
 export const ShopSettings = () => {
   const [shop, setShop] = useState(null);
@@ -11,8 +11,27 @@ export const ShopSettings = () => {
   const [imagePath, setImagePath] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await api.uploadFile('/storage/upload?folder=shops', formData);
+      if (res?.url) {
+        setImagePath(res.url);
+      }
+    } catch (err) {
+      alert('Upload to Supabase failed: ' + (err.message || 'Please check your connection'));
+    } finally {
+      setUploading(false);
+    }
+  };
 
   // Deletion Request
   const [deletionRequests, setDeletionRequests] = useState([]);
@@ -143,13 +162,38 @@ export const ShopSettings = () => {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Cover Image URL</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <label className="form-label" style={{ marginBottom: 0 }}>Cover Image</label>
+              <label className="btn btn-outline" style={{ cursor: 'pointer', padding: '4px 10px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <Upload size={13} />
+                {uploading ? 'Uploading...' : 'Upload to Supabase'}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  style={{ display: 'none' }}
+                  disabled={uploading}
+                  onChange={handleFileUpload}
+                />
+              </label>
+            </div>
             <input
               type="url"
               className="form-input"
               value={imagePath}
+              placeholder="https://... or uploaded image URL"
               onChange={(e) => setImagePath(e.target.value)}
             />
+            {imagePath && (
+              <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <img
+                  src={imagePath}
+                  alt="Shop Preview"
+                  style={{ width: '80px', height: '50px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)' }}
+                  onError={(e) => { e.target.style.display = 'none'; }}
+                />
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Cover image ready</span>
+              </div>
+            )}
           </div>
 
           <button type="submit" disabled={saving} className="btn btn-primary" style={{ marginTop: '8px' }}>
