@@ -54,12 +54,20 @@ Migrated via `db/migration/V1__initial_schema.sql`:
 - Apache Maven 3.9+
 
 ### Commands
-```bash
-# Run automated test suite
-mvn test
+From the `backend` folder:
+```powershell
+# Option 1: Using the provided wrapper (recommended)
+.\mvnw spring-boot:run
 
-# Run application locally
+# Option 2: Running the pre-built production fat JAR directly
+java -jar target\quickbite-backend-1.0.0.jar
+
+# Option 3: If you refresh your PowerShell session (Maven is installed at C:\Users\creat\tools\apache-maven-3.9.9\bin)
+$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
 mvn spring-boot:run
+
+# Run automated tests
+.\mvnw test
 ```
 
 API Documentation will be accessible at:

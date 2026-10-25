@@ -70,7 +70,7 @@ public class DisputeService {
         if (principal == null || principal.getIdentityId() == null) {
             throw new ForbiddenException("Authentication required");
         }
-        return disputeRepository.findByRaisedByIdentityId(principal.getIdentityId()).stream()
+        return disputeRepository.findByRaisedById(principal.getIdentityId()).stream()
                 .map(DisputeResponse::from)
                 .toList();
     }

@@ -60,7 +60,7 @@ public class AccountDeletionService {
             throw new ForbiddenException("Account deletion requests are only applicable to Shop Owners and Delivery Partners. Buyers can self-deactivate.");
         }
 
-        if (deletionRequestRepository.existsByRequesterIdentityIdAndStatus(requester.getId(), DeletionRequestStatus.PENDING)) {
+        if (deletionRequestRepository.existsByRequesterIdAndStatus(requester.getId(), DeletionRequestStatus.PENDING)) {
             throw new ConflictException("A pending deletion request already exists for this account");
         }
 
@@ -78,7 +78,7 @@ public class AccountDeletionService {
         if (principal == null || principal.getIdentityId() == null) {
             throw new ForbiddenException("Authentication required");
         }
-        return deletionRequestRepository.findByRequesterIdentityId(principal.getIdentityId()).stream()
+        return deletionRequestRepository.findByRequesterId(principal.getIdentityId()).stream()
                 .map(DeletionRequestResponse::from)
                 .toList();
     }

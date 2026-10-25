@@ -8,12 +8,12 @@ CREATE TABLE IF NOT EXISTS account_identities (
     id BIGSERIAL PRIMARY KEY,
     firebase_uid VARCHAR(128) NOT NULL UNIQUE,
     email VARCHAR(255) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_account_identities_email_lower 
-ON account_identities (LOWER(email));
+CREATE UNIQUE INDEX IF NOT EXISTS idx_account_identities_email 
+ON account_identities (email);
 
 -- 2. Users (Buyer-only profile)
 CREATE TABLE IF NOT EXISTS users (
@@ -23,9 +23,9 @@ CREATE TABLE IF NOT EXISTS users (
     phone VARCHAR(20),
     account_status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' 
         CHECK (account_status IN ('ACTIVE', 'DEACTIVATED', 'SUSPENDED')),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deactivated_at TIMESTAMPTZ
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deactivated_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_identity_id ON users (identity_id);
@@ -38,9 +38,9 @@ CREATE TABLE IF NOT EXISTS delivery_partners (
     phone VARCHAR(20),
     account_status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' 
         CHECK (account_status IN ('ACTIVE', 'DEACTIVATED', 'SUSPENDED')),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deactivated_at TIMESTAMPTZ
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deactivated_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE INDEX IF NOT EXISTS idx_delivery_partners_identity_id ON delivery_partners (identity_id);
@@ -53,9 +53,9 @@ CREATE TABLE IF NOT EXISTS shop_owners (
     phone VARCHAR(20),
     account_status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' 
         CHECK (account_status IN ('ACTIVE', 'DEACTIVATED', 'SUSPENDED')),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deactivated_at TIMESTAMPTZ
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deactivated_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE INDEX IF NOT EXISTS idx_shop_owners_identity_id ON shop_owners (identity_id);
@@ -67,9 +67,9 @@ CREATE TABLE IF NOT EXISTS admins (
     display_name VARCHAR(100) NOT NULL,
     account_status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' 
         CHECK (account_status IN ('ACTIVE', 'DEACTIVATED', 'SUSPENDED')),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deactivated_at TIMESTAMPTZ
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deactivated_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE INDEX IF NOT EXISTS idx_admins_identity_id ON admins (identity_id);
@@ -86,9 +86,9 @@ CREATE TABLE IF NOT EXISTS shops (
         CHECK (approval_status IN ('PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED')),
     is_open BOOLEAN NOT NULL DEFAULT FALSE,
     is_deactivated BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    deactivated_at TIMESTAMPTZ
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deactivated_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE INDEX IF NOT EXISTS idx_shops_owner_id ON shops (owner_id);
@@ -104,8 +104,8 @@ CREATE TABLE IF NOT EXISTS products (
     stock_quantity INT NOT NULL DEFAULT 0 CHECK (stock_quantity >= 0),
     image_path VARCHAR(500),
     is_available BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_products_shop_id ON products (shop_id);
@@ -124,8 +124,8 @@ CREATE TABLE IF NOT EXISTS orders (
     total_amount NUMERIC(10, 2) NOT NULL CHECK (total_amount >= 0),
     buyer_note TEXT,
     cancellation_reason TEXT,
-    placed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    placed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_orders_total_calc CHECK (total_amount = subtotal + delivery_fee - discount_amount)
 );
 
@@ -159,9 +159,9 @@ CREATE TABLE IF NOT EXISTS payments (
     status VARCHAR(30) NOT NULL DEFAULT 'CREATED' 
         CHECK (status IN ('CREATED', 'PENDING', 'AUTHORIZED', 'CAPTURED', 'FAILED', 'REFUND_PENDING', 'REFUNDED')),
     idempotency_key VARCHAR(100),
-    verified_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    verified_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_payments_order_id ON payments (order_id);
@@ -179,8 +179,8 @@ CREATE TABLE IF NOT EXISTS refunds (
     provider_refund_id VARCHAR(100),
     reason TEXT NOT NULL,
     idempotency_key VARCHAR(100),
-    requested_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    processed_at TIMESTAMPTZ
+    requested_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    processed_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE INDEX IF NOT EXISTS idx_refunds_payment_id ON refunds (payment_id);
@@ -192,12 +192,12 @@ CREATE TABLE IF NOT EXISTS delivery_assignments (
     delivery_partner_id BIGINT REFERENCES delivery_partners(id) ON DELETE RESTRICT,
     status VARCHAR(30) NOT NULL DEFAULT 'UNASSIGNED' 
         CHECK (status IN ('UNASSIGNED', 'ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'DELIVERED', 'FAILED', 'CANCELLED')),
-    assigned_at TIMESTAMPTZ,
-    accepted_at TIMESTAMPTZ,
-    picked_up_at TIMESTAMPTZ,
-    delivered_at TIMESTAMPTZ,
+    assigned_at TIMESTAMP WITH TIME ZONE,
+    accepted_at TIMESTAMP WITH TIME ZONE,
+    picked_up_at TIMESTAMP WITH TIME ZONE,
+    delivered_at TIMESTAMP WITH TIME ZONE,
     failure_reason TEXT,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_delivery_assignments_partner_id ON delivery_assignments (delivery_partner_id);
@@ -213,9 +213,9 @@ CREATE TABLE IF NOT EXISTS account_deletion_requests (
     reason TEXT NOT NULL,
     reviewed_by_admin_id BIGINT REFERENCES admins(id) ON DELETE RESTRICT,
     review_note TEXT,
-    requested_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    reviewed_at TIMESTAMPTZ,
-    completed_at TIMESTAMPTZ
+    requested_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at TIMESTAMP WITH TIME ZONE,
+    completed_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE INDEX IF NOT EXISTS idx_deletion_requests_requester ON account_deletion_requests (requester_identity_id);
@@ -227,7 +227,7 @@ CREATE TABLE IF NOT EXISTS feedback (
     buyer_id BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
     comment TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_feedback_order_id ON feedback (order_id);
@@ -244,8 +244,8 @@ CREATE TABLE IF NOT EXISTS disputes (
         CHECK (status IN ('OPEN', 'UNDER_REVIEW', 'RESOLVED', 'REJECTED', 'CLOSED')),
     resolution_note TEXT,
     resolved_by_admin_id BIGINT REFERENCES admins(id) ON DELETE RESTRICT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    resolved_at TIMESTAMPTZ
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    resolved_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE INDEX IF NOT EXISTS idx_disputes_order_id ON disputes (order_id);
@@ -258,8 +258,8 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     action VARCHAR(100) NOT NULL,
     target_type VARCHAR(100) NOT NULL,
     target_id VARCHAR(100) NOT NULL,
-    safe_metadata JSONB,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    safe_metadata TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs (actor_identity_id);

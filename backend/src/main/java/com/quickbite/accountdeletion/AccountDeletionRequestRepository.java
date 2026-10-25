@@ -7,7 +7,7 @@ import java.util.List;
 
 @Repository
 public interface AccountDeletionRequestRepository extends JpaRepository<AccountDeletionRequest, Long> {
-    List<AccountDeletionRequest> findByRequesterIdentityId(Long identityId);
+    List<AccountDeletionRequest> findByRequesterId(Long requesterId);
     List<AccountDeletionRequest> findByStatus(DeletionRequestStatus status);
-    boolean existsByRequesterIdentityIdAndStatus(Long identityId, DeletionRequestStatus status);
+    boolean existsByRequesterIdAndStatus(Long requesterId, DeletionRequestStatus status);
 }
