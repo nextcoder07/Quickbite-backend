@@ -23,7 +23,7 @@ public class AuditService {
         this.objectMapper = objectMapper;
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public void record(AccountIdentity actor, String action, String targetType, String targetId, Map<String, Object> safeMetadata) {
         try {
             // Ensure no sensitive credentials (passwords, tokens, card details) are recorded

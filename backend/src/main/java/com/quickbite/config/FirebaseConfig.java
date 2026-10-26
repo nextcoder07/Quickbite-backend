@@ -38,6 +38,12 @@ public class FirebaseConfig {
             if (FirebaseApp.getApps().isEmpty()) {
                 InputStream serviceAccount = null;
                 File file = new File(configPath);
+                if (!file.exists()) {
+                    file = new File("backend", configPath);
+                }
+                if (!file.exists()) {
+                    file = new File("..", configPath);
+                }
                 if (file.exists()) {
                     serviceAccount = new FileInputStream(file);
                 } else {

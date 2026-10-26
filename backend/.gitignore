@@ -1,0 +1,33 @@
+# Maven Build Output
+target/
+*.class
+*.jar
+*.war
+*.ear
+dependency-reduced-pom.xml
+
+# Logs
+*.log
+
+# Maven Wrapper runtime
+.mvn/
+!mvnw
+!mvnw.cmd
+!mvnw.ps1
+
+# Secrets & Environment
+.env
+.env.*
+!.env.example
+firebase-adminsdk.json
+serviceAccountKey.json
+*.pem
+*.key
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
