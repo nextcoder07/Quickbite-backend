@@ -44,11 +44,12 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('qb_user');
   };
 
-  const devQuickLogin = async (targetRole) => {
+  const devQuickLogin = async (targetRoleOrEmail) => {
     let email = 'buyer@quickbite.campus';
-    if (targetRole === 'SHOP_OWNER') email = 'shop@quickbite.campus';
-    if (targetRole === 'DELIVERY_PARTNER') email = 'delivery@quickbite.campus';
-    if (targetRole === 'ADMIN') email = 'admin@quickbite.campus';
+    if (targetRoleOrEmail === 'SHOP_OWNER') email = 'shop@quickbite.campus';
+    else if (targetRoleOrEmail === 'DELIVERY_PARTNER') email = 'delivery@quickbite.campus';
+    else if (targetRoleOrEmail === 'ADMIN') email = 'admin@quickbite.campus';
+    else if (targetRoleOrEmail && targetRoleOrEmail.includes('@')) email = targetRoleOrEmail.trim();
 
     try {
       const res = await api.post('/auth/dev-login', { email });

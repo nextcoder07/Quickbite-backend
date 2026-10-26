@@ -14,11 +14,14 @@ Desktop.ini
 *.sw?
 
 # Java and Maven
-backend/target/
+target/
+**/target/
+*.class
+*.jar
+*.war
 backend/.mvn/
 backend/*.log
 dependency-reduced-pom.xml
-
 # Node and Frontend
 frontend/node_modules/
 node_modules/
@@ -48,3 +51,5 @@ coverage/
 # Electron packaging output
 dist/
 release/
+dist-electron/
+frontend/dist-electron/
