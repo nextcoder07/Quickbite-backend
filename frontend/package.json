@@ -43,9 +43,9 @@
     ],
     "win": {
       "target": [
-        "nsis",
-        "portable"
-      ]
+        "dir"
+      ],
+      "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,

@@ -17,8 +17,8 @@ yarn-debug.log*
 pnpm-debug.log*
 
 # Environment and Local Secrets
-.env.local
-.env.*.local
+.env
+.env.*
 !.env.example
 
 # Editor directories
