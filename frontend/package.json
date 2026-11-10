@@ -13,12 +13,7 @@
     "electron:start": "electron .",
     "dist": "npm run build && electron-builder --win"
   },
-  "dependencies": {
-    "lucide-react": "^0.383.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^6.23.1"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/react": "^18.3.2",
     "@types/react-dom": "^18.3.0",
@@ -27,6 +22,10 @@
     "cross-env": "^7.0.3",
     "electron": "^30.0.9",
     "electron-builder": "^24.13.3",
+    "lucide-react": "^0.383.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.23.1",
     "vite": "^5.2.11",
     "wait-on": "^7.2.0"
   },

@@ -4,8 +4,9 @@ import { StatusBadge } from '../../components/StatusBadge';
 import { RotateCcw, Check, X, ShieldCheck } from 'lucide-react';
 
 export const RefundManagement = () => {
-  const [refunds, setRefunds] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cachedRefunds = api.getCache('/payments/refunds');
+  const [refunds, setRefunds] = useState(() => cachedRefunds || []);
+  const [loading, setLoading] = useState(() => !cachedRefunds);
 
   const fetchRefunds = async () => {
     try {

@@ -4,8 +4,9 @@ import { StatusBadge } from '../../components/StatusBadge';
 import { Store, Check, X, Ban, MapPin } from 'lucide-react';
 
 export const ShopApprovals = () => {
-  const [shops, setShops] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cachedShops = api.getCache('/admin/shops');
+  const [shops, setShops] = useState(() => cachedShops || []);
+  const [loading, setLoading] = useState(() => !cachedShops);
   const [filter, setFilter] = useState('ALL');
 
   const fetchShops = async () => {

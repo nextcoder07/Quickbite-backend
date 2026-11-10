@@ -13,9 +13,11 @@ import {
 } from 'lucide-react';
 
 export const DeliveryDashboard = () => {
-  const [availableDeliveries, setAvailableDeliveries] = useState([]);
-  const [myDeliveries, setMyDeliveries] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cachedAvail = api.getCache('/delivery/available');
+  const cachedMy = api.getCache('/delivery/my');
+  const [availableDeliveries, setAvailableDeliveries] = useState(() => cachedAvail || []);
+  const [myDeliveries, setMyDeliveries] = useState(() => cachedMy || []);
+  const [loading, setLoading] = useState(() => !cachedAvail && !cachedMy);
   const [error, setError] = useState('');
 
   // Failure reporting modal

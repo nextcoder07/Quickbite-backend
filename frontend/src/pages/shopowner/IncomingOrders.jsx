@@ -4,8 +4,9 @@ import { StatusBadge } from '../../components/StatusBadge';
 import { ShoppingBag, Clock, Check, X, ChefHat, CheckCircle2, MessageSquare } from 'lucide-react';
 
 export const IncomingOrders = () => {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cachedOrders = api.getCache('/orders/shop');
+  const [orders, setOrders] = useState(() => cachedOrders || []);
+  const [loading, setLoading] = useState(() => !cachedOrders);
   const [error, setError] = useState('');
 
   const fetchShopOrders = async () => {
@@ -13,7 +14,9 @@ export const IncomingOrders = () => {
       const data = await api.get('/orders/shop');
       setOrders(data);
     } catch (err) {
-      setError(err.message || 'Failed to load shop orders');
+      if (!cachedOrders) {
+        setError(err.message || 'Failed to load shop orders');
+      }
     } finally {
       setLoading(false);
     }

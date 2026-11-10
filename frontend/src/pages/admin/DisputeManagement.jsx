@@ -4,8 +4,9 @@ import { StatusBadge } from '../../components/StatusBadge';
 import { AlertCircle, Check, X, MessageSquare } from 'lucide-react';
 
 export const DisputeManagement = () => {
-  const [disputes, setDisputes] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cachedDisputes = api.getCache('/disputes');
+  const [disputes, setDisputes] = useState(() => cachedDisputes || []);
+  const [loading, setLoading] = useState(() => !cachedDisputes);
 
   const fetchDisputes = async () => {
     try {

@@ -14,8 +14,9 @@ import {
 } from 'lucide-react';
 
 export const AdminDashboard = () => {
-  const [summary, setSummary] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const cachedSummary = api.getCache('/admin/summary');
+  const [summary, setSummary] = useState(() => cachedSummary || null);
+  const [loading, setLoading] = useState(() => !cachedSummary);
   const [error, setError] = useState('');
 
   useEffect(() => {

@@ -13,9 +13,10 @@ import {
   Sparkles,
   Layers
 } from 'lucide-react';
+import { RolePolicyFactory } from '../policies/RolePolicy';
 
 export const Navbar = () => {
-  const { user, role, logout, devQuickLogin } = useAuth();
+  const { user, role, policy, logout, devQuickLogin } = useAuth();
   const { itemCount, subtotal } = useCart();
   const navigate = useNavigate();
   const [showRoleMenu, setShowRoleMenu] = useState(false);
@@ -23,23 +24,19 @@ export const Navbar = () => {
   const handleRoleSwitch = async (targetRole) => {
     setShowRoleMenu(false);
     await devQuickLogin(targetRole);
-    if (targetRole === 'BUYER') navigate('/');
-    if (targetRole === 'SHOP_OWNER') navigate('/shop/dashboard');
-    if (targetRole === 'DELIVERY_PARTNER') navigate('/delivery/dashboard');
-    if (targetRole === 'ADMIN') navigate('/admin/dashboard');
+    const targetPolicy = RolePolicyFactory.getPolicy(targetRole);
+    navigate(targetPolicy.getDefaultRoute());
   };
 
   const getRoleBadge = () => {
-    switch (role) {
-      case 'ADMIN':
-        return <span className="badge badge-purple"><Shield size={12} /> Admin</span>;
-      case 'SHOP_OWNER':
-        return <span className="badge badge-warning"><Store size={12} /> Shop Owner</span>;
-      case 'DELIVERY_PARTNER':
-        return <span className="badge badge-info"><Bike size={12} /> Delivery</span>;
-      default:
-        return <span className="badge badge-success"><User size={12} /> Buyer</span>;
-    }
+    const badgeClass = policy ? policy.getBadgeColor() : 'badge-success';
+    const displayName = policy ? policy.getDisplayName() : 'Buyer';
+    let Icon = User;
+    if (role === 'ADMIN') Icon = Shield;
+    else if (role === 'SHOP_OWNER') Icon = Store;
+    else if (role === 'DELIVERY_PARTNER') Icon = Bike;
+
+    return <span className={`badge ${badgeClass}`}><Icon size={12} /> {displayName}</span>;
   };
 
   return (

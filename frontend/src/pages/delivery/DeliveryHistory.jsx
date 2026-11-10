@@ -4,8 +4,9 @@ import { StatusBadge } from '../../components/StatusBadge';
 import { Clock, Store, CheckCircle2, TrendingUp } from 'lucide-react';
 
 export const DeliveryHistory = () => {
-  const [deliveries, setDeliveries] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cachedDeliveries = api.getCache('/delivery/my');
+  const [deliveries, setDeliveries] = useState(() => cachedDeliveries || []);
+  const [loading, setLoading] = useState(() => !cachedDeliveries);
   const [error, setError] = useState('');
 
   useEffect(() => {

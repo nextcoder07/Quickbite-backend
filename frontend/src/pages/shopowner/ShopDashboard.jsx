@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../api/apiClient';
+import { shopOwnerService } from '../../services/ShopOwnerService';
 import { StatusBadge } from '../../components/StatusBadge';
 import { 
   Store, 
@@ -15,10 +16,14 @@ import {
 } from 'lucide-react';
 
 export const ShopDashboard = () => {
-  const [shop, setShop] = useState(null);
-  const [products, setProducts] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cachedShop = api.getCache('/marketplace/owner/shop');
+  const cachedProducts = api.getCache('/marketplace/owner/products');
+  const cachedOrders = api.getCache('/orders/shop');
+
+  const [shop, setShop] = useState(() => cachedShop || null);
+  const [products, setProducts] = useState(() => cachedProducts || []);
+  const [orders, setOrders] = useState(() => cachedOrders || []);
+  const [loading, setLoading] = useState(() => !cachedShop && !cachedProducts);
   const [error, setError] = useState('');
 
   // Shop registration form for new shop owners
@@ -49,12 +54,12 @@ export const ShopDashboard = () => {
 
   const fetchShopData = async () => {
     try {
-      const shopData = await api.get('/marketplace/owner/shop');
+      const shopData = await shopOwnerService.getMyShop();
       setShop(shopData);
 
       const [prods, ords] = await Promise.all([
-        api.get('/marketplace/owner/products'),
-        api.get('/orders/shop'),
+        shopOwnerService.getMyProducts(),
+        shopOwnerService.getIncomingOrders(),
       ]);
       setProducts(prods);
       setOrders(ords);
@@ -80,7 +85,7 @@ export const ShopDashboard = () => {
     setError('');
 
     try {
-      const res = await api.post('/marketplace/owner/shop', {
+      const res = await shopOwnerService.createShop({
         name: shopName.trim(),
         description: description.trim(),
         campusLocation: campusLocation.trim(),

@@ -1,60 +1,58 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { api } from '../api/apiClient';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { authService } from '../services/AuthService';
+import { RolePolicyFactory } from '../policies/RolePolicy';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('qb_user');
-    return saved ? JSON.parse(saved) : null;
+  const [account, setAccount] = useState(() => authService.getStoredAccount());
+  const [token, setToken] = useState(() => authService.getStoredToken());
+  const [loading, setLoading] = useState(() => {
+    const storedToken = authService.getStoredToken();
+    const storedAccount = authService.getStoredAccount();
+    return !!storedToken && !storedAccount;
   });
-  const [token, setToken] = useState(() => localStorage.getItem('qb_token'));
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const storedToken = localStorage.getItem('qb_token');
+    const verifySession = async () => {
+      const storedToken = authService.getStoredToken();
       if (storedToken) {
         try {
-          const profile = await api.get('/auth/me');
-          setUser(profile);
-          localStorage.setItem('qb_user', JSON.stringify(profile));
+          const freshAccount = await authService.getCurrentUser();
+          setAccount(freshAccount);
         } catch (err) {
-          console.warn('Session restoration failed:', err.message);
-          // Don't forcefully wipe immediately if server is still starting
+          console.warn('Session verification notice:', err.message);
+          if (err.status === 401) {
+            authService.logout();
+            setAccount(null);
+            setToken(null);
+          }
         }
       }
       setLoading(false);
     };
 
-    checkAuth();
+    verifySession();
   }, []);
 
-  const login = (authData) => {
-    setUser(authData);
-    setToken(authData.token);
-    localStorage.setItem('qb_token', authData.token);
-    localStorage.setItem('qb_user', JSON.stringify(authData));
+  const login = (accountData) => {
+    const stored = authService.storeSession(accountData);
+    setAccount(stored);
+    setToken(stored.token);
   };
 
   const logout = () => {
-    setUser(null);
+    authService.logout();
+    setAccount(null);
     setToken(null);
-    localStorage.removeItem('qb_token');
-    localStorage.removeItem('qb_user');
   };
 
   const devQuickLogin = async (targetRoleOrEmail) => {
-    let email = 'buyer@quickbite.campus';
-    if (targetRoleOrEmail === 'SHOP_OWNER') email = 'shop@quickbite.campus';
-    else if (targetRoleOrEmail === 'DELIVERY_PARTNER') email = 'delivery@quickbite.campus';
-    else if (targetRoleOrEmail === 'ADMIN') email = 'admin@quickbite.campus';
-    else if (targetRoleOrEmail && targetRoleOrEmail.includes('@')) email = targetRoleOrEmail.trim();
-
     try {
-      const res = await api.post('/auth/dev-login', { email });
-      login(res);
-      return res;
+      const loggedInAccount = await authService.devQuickLogin(targetRoleOrEmail);
+      setAccount(loggedInAccount);
+      setToken(loggedInAccount.token);
+      return loggedInAccount;
     } catch (err) {
       console.error('Dev login failed:', err);
       throw err;
@@ -62,20 +60,25 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateProfile = (updatedFields) => {
-    const updated = { ...user, ...updatedFields };
-    setUser(updated);
-    localStorage.setItem('qb_user', JSON.stringify(updated));
+    if (!account) return;
+    const updated = { ...(account.toJSON ? account.toJSON() : account), ...updatedFields };
+    login(updated);
   };
 
-  const role = user?.accountType;
+  const role = account?.accountType || null;
+
+  // Polymorphic Role Policy
+  const policy = useMemo(() => RolePolicyFactory.getPolicy(role), [role]);
 
   return (
     <AuthContext.Provider
       value={{
-        user,
+        user: account,
+        account,
         token,
         role,
-        isAuthenticated: !!user && !!token,
+        policy,
+        isAuthenticated: !!account && !!token,
         loading,
         login,
         logout,

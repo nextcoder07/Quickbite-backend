@@ -1,88 +1,96 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import { Cart } from '../models/Cart';
+import { Shop } from '../models/Shop';
 
 const CartContext = createContext(null);
 
+const CART_STORAGE_KEY = 'qb_cart';
+const SHOP_STORAGE_KEY = 'qb_cart_shop';
+
 export const CartProvider = ({ children }) => {
-  const [cart, setCart] = useState(() => {
-    const saved = localStorage.getItem('qb_cart');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [shop, setShop] = useState(() => {
-    const saved = localStorage.getItem('qb_cart_shop');
-    return saved ? JSON.parse(saved) : null;
+  const [cartState, setCartState] = useState(() => {
+    try {
+      const savedItems = localStorage.getItem(CART_STORAGE_KEY);
+      const savedShop = localStorage.getItem(SHOP_STORAGE_KEY);
+      const parsedItems = savedItems ? JSON.parse(savedItems) : [];
+      const parsedShop = savedShop ? JSON.parse(savedShop) : null;
+      return new Cart(parsedItems, parsedShop);
+    } catch {
+      return new Cart();
+    }
   });
 
+  // Sync to local storage
   useEffect(() => {
-    localStorage.setItem('qb_cart', JSON.stringify(cart));
-    localStorage.setItem('qb_cart_shop', JSON.stringify(shop));
-  }, [cart, shop]);
-
-  const addToCart = (product, targetShop) => {
-    if (shop && shop.id !== targetShop.id && cart.length > 0) {
-      const confirmSwitch = window.confirm(
-        `Your cart contains items from "${shop.name}". Would you like to clear your cart and add items from "${targetShop.name}" instead?`
-      );
-      if (!confirmSwitch) return false;
-      setCart([{ product, quantity: 1 }]);
-      setShop(targetShop);
-      return true;
+    try {
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartState.items.map((i) => i.toJSON())));
+      localStorage.setItem(SHOP_STORAGE_KEY, JSON.stringify(cartState.shop ? cartState.shop.toJSON() : null));
+    } catch (err) {
+      console.warn('Could not persist cart to localStorage', err);
     }
+  }, [cartState]);
 
-    if (!shop || cart.length === 0) {
-      setShop(targetShop);
-    }
+  const addToCart = useCallback((product, targetShop) => {
+    let result = false;
+    setCartState((prevCart) => {
+      // Re-hydrate or clone Cart instance
+      const cart = new Cart(prevCart.items, prevCart.shop);
+      const addResult = cart.addItem(product, targetShop, false);
 
-    setCart((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
-      if (existing) {
-        return prev.map((item) =>
-          item.product.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
+      if (addResult.conflict) {
+        const confirmSwitch = window.confirm(
+          `Your cart contains items from "${addResult.existingShop.name}". Would you like to clear your cart and add items from "${addResult.newShop.name}" instead?`
         );
+        if (!confirmSwitch) {
+          result = false;
+          return prevCart;
+        }
+        // User confirmed: force reset and add
+        cart.addItem(product, targetShop, true);
       }
-      return [...prev, { product, quantity: 1 }];
+
+      result = true;
+      return cart;
     });
-    return true;
-  };
+    return result;
+  }, []);
 
-  const updateQuantity = (productId, delta) => {
-    setCart((prev) => {
-      return prev
-        .map((item) => {
-          if (item.product.id === productId) {
-            const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
-          }
-          return item;
-        })
-        .filter(Boolean);
+  const updateQuantity = useCallback((productId, delta) => {
+    setCartState((prevCart) => {
+      const cart = new Cart(prevCart.items, prevCart.shop);
+      cart.updateQuantity(productId, delta);
+      return cart;
     });
-  };
+  }, []);
 
-  const removeFromCart = (productId) => {
-    setCart((prev) => prev.filter((item) => item.product.id !== productId));
-  };
+  const removeFromCart = useCallback((productId) => {
+    setCartState((prevCart) => {
+      const cart = new Cart(prevCart.items, prevCart.shop);
+      cart.removeItem(productId);
+      return cart;
+    });
+  }, []);
 
-  const clearCart = () => {
-    setCart([]);
-    setShop(null);
-    localStorage.removeItem('qb_cart');
-    localStorage.removeItem('qb_cart_shop');
-  };
+  const clearCart = useCallback(() => {
+    setCartState(new Cart());
+    localStorage.removeItem(CART_STORAGE_KEY);
+    localStorage.removeItem(SHOP_STORAGE_KEY);
+  }, []);
 
-  const subtotal = cart.reduce((sum, item) => {
-    return sum + Number(item.product.price) * item.quantity;
-  }, 0);
-
-  const deliveryFee = subtotal > 0 && subtotal < 300 ? 30 : 0;
-  const totalAmount = subtotal + deliveryFee;
-  const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  // Encapsulated Domain Calculations
+  const subtotal = useMemo(() => cartState.getSubtotal(), [cartState]);
+  const deliveryFee = useMemo(() => cartState.getDeliveryFee(), [cartState]);
+  const totalAmount = useMemo(() => cartState.getTotalAmount(), [cartState]);
+  const itemCount = useMemo(() => cartState.getItemCount(), [cartState]);
+  const items = useMemo(() => cartState.getItems(), [cartState]);
+  const shop = cartState.getShop();
 
   return (
     <CartContext.Provider
       value={{
-        cart,
+        cartModel: cartState,
+        cart: items.map((i) => ({ product: i.product, quantity: i.quantity })),
+        items,
         shop,
         itemCount,
         subtotal,

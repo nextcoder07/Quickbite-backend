@@ -1,34 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { api } from '../../api/apiClient';
+import { marketplaceService } from '../../services/MarketplaceService';
 import { useCart } from '../../context/CartContext';
-import { MapPin, ArrowLeft, Plus, Minus, ShoppingBag, Clock, AlertCircle } from 'lucide-react';
+import { MapPin, ArrowLeft, Plus, Minus, Clock, AlertCircle } from 'lucide-react';
 
 export const ShopDetail = () => {
   const { shopId } = useParams();
   const { cart, addToCart, updateQuantity } = useCart();
+
   const [shop, setShop] = useState(null);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    let active = true;
     const fetchShopAndProducts = async () => {
       try {
-        const [shopData, productsData] = await Promise.all([
-          api.get(`/marketplace/shops/${shopId}`),
-          api.get(`/marketplace/shops/${shopId}/products`),
+        const [shopModel, productModels] = await Promise.all([
+          marketplaceService.getShopById(shopId),
+          marketplaceService.getProductsByShop(shopId),
         ]);
-        setShop(shopData);
-        setProducts(productsData);
+        if (active) {
+          setShop(shopModel);
+          setProducts(productModels);
+        }
       } catch (err) {
-        setError(err.message || 'Failed to load shop details');
+        if (active) {
+          setError(err.message || 'Failed to load shop details');
+        }
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     fetchShopAndProducts();
+    return () => { active = false; };
   }, [shopId]);
 
   const getItemQuantity = (productId) => {
@@ -65,6 +72,8 @@ export const ShopDetail = () => {
           <img
             src={shop.imagePath || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1000&auto=format&fit=crop'}
             alt={shop.name}
+            loading="lazy"
+            decoding="async"
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
           <div style={{
@@ -91,7 +100,7 @@ export const ShopDetail = () => {
             </div>
 
             <div>
-              {shop.open ? (
+              {shop.isOpen ? (
                 <span className="badge badge-success" style={{ padding: '6px 14px', fontSize: '0.85rem' }}>
                   <Clock size={14} /> ACCEPTING ORDERS
                 </span>
@@ -111,7 +120,7 @@ export const ShopDetail = () => {
         )}
       </div>
 
-      {!shop.open && (
+      {!shop.isOpen && (
         <div style={{
           padding: '14px 20px',
           background: 'rgba(239, 68, 68, 0.12)',
@@ -145,7 +154,7 @@ export const ShopDetail = () => {
         }}>
           {products.map((product) => {
             const quantity = getItemQuantity(product.id);
-            const inStock = product.stockQuantity > 0 && product.available;
+            const inStock = product.isInStock();
 
             return (
               <div
@@ -163,6 +172,8 @@ export const ShopDetail = () => {
                   <img
                     src={product.imagePath || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop'}
                     alt={product.name}
+                    loading="lazy"
+                    decoding="async"
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   />
                   {!inStock && (
@@ -202,14 +213,14 @@ export const ShopDetail = () => {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)' }}>
                     <div>
                       <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary)' }}>
-                        ₹{Number(product.price).toFixed(2)}
+                        {product.formattedPrice}
                       </div>
                       <div style={{ fontSize: '0.72rem', color: 'var(--text-faint)' }}>
-                        {inStock ? `${product.stockQuantity} left in stock` : 'Out of stock'}
+                        {product.getStockStatusLabel()}
                       </div>
                     </div>
 
-                    {inStock && shop.open && (
+                    {inStock && shop.isOpen && (
                       <div>
                         {quantity === 0 ? (
                           <button

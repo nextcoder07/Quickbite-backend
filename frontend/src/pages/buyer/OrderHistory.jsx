@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../api/apiClient';
+import { orderService } from '../../services/OrderService';
 import { StatusBadge } from '../../components/StatusBadge';
 import { 
   Clock, 
@@ -15,8 +15,9 @@ import {
 } from 'lucide-react';
 
 export const OrderHistory = () => {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cachedOrders = api.getCache('/orders/buyer');
+  const [orders, setOrders] = useState(() => cachedOrders || []);
+  const [loading, setLoading] = useState(() => !cachedOrders);
   const [error, setError] = useState('');
 
   // Modals
@@ -32,10 +33,12 @@ export const OrderHistory = () => {
 
   const fetchOrders = async () => {
     try {
-      const data = await api.get('/orders/buyer');
+      const data = await orderService.getBuyerOrders();
       setOrders(data);
     } catch (err) {
-      setError(err.message || 'Failed to fetch orders');
+      if (!cachedOrders) {
+        setError(err.message || 'Failed to fetch orders');
+      }
     } finally {
       setLoading(false);
     }
@@ -52,7 +55,7 @@ export const OrderHistory = () => {
     if (reason === null) return;
 
     try {
-      await api.post(`/orders/${orderId}/cancel`, { reason });
+      await orderService.cancelOrder(orderId, reason);
       fetchOrders();
     } catch (err) {
       alert(err.message || 'Failed to cancel order');
@@ -64,14 +67,11 @@ export const OrderHistory = () => {
     if (!feedbackOrder) return;
     setFeedbackSubmitting(true);
     try {
-      await api.post('/feedback', {
-        orderId: feedbackOrder.id,
-        rating,
-        comment,
-      });
+      await orderService.submitFeedback(feedbackOrder.id, rating, comment);
       alert('Thank you! Your review has been submitted.');
       setFeedbackOrder(null);
       setComment('');
+      fetchOrders();
     } catch (err) {
       alert(err.message || 'Failed to submit review');
     } finally {
@@ -84,14 +84,11 @@ export const OrderHistory = () => {
     if (!disputeOrder) return;
     setDisputeSubmitting(true);
     try {
-      await api.post('/disputes', {
-        orderId: disputeOrder.id,
-        category: disputeCategory,
-        description: disputeDescription,
-      });
+      await orderService.raiseDispute(disputeOrder.id, disputeCategory, disputeDescription);
       alert('Dispute submitted for campus administrator moderation.');
       setDisputeOrder(null);
       setDisputeDescription('');
+      fetchOrders();
     } catch (err) {
       alert(err.message || 'Failed to raise dispute');
     } finally {

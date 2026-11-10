@@ -3,8 +3,9 @@ import { api } from '../../api/apiClient';
 import { FileText, Shield, Clock } from 'lucide-react';
 
 export const AuditLogs = () => {
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cachedLogs = api.getCache('/admin/audit-logs');
+  const [logs, setLogs] = useState(() => cachedLogs || []);
+  const [loading, setLoading] = useState(() => !cachedLogs);
 
   useEffect(() => {
     const fetchLogs = async () => {

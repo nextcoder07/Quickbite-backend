@@ -4,8 +4,9 @@ import { StatusBadge } from '../../components/StatusBadge';
 import { ClipboardList, Check, X, AlertTriangle } from 'lucide-react';
 
 export const DeletionRequests = () => {
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cachedRequests = api.getCache('/admin/deletion-requests');
+  const [requests, setRequests] = useState(() => cachedRequests || []);
+  const [loading, setLoading] = useState(() => !cachedRequests);
 
   const fetchRequests = async () => {
     try {

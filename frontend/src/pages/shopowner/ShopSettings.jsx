@@ -4,12 +4,13 @@ import { StatusBadge } from '../../components/StatusBadge';
 import { Sliders, AlertTriangle, CheckCircle2, Clock, Upload } from 'lucide-react';
 
 export const ShopSettings = () => {
-  const [shop, setShop] = useState(null);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [campusLocation, setCampusLocation] = useState('');
-  const [imagePath, setImagePath] = useState('');
-  const [loading, setLoading] = useState(true);
+  const cachedShop = api.getCache('/marketplace/owner/shop');
+  const [shop, setShop] = useState(() => cachedShop || null);
+  const [name, setName] = useState(() => cachedShop?.name || '');
+  const [description, setDescription] = useState(() => cachedShop?.description || '');
+  const [campusLocation, setCampusLocation] = useState(() => cachedShop?.campusLocation || '');
+  const [imagePath, setImagePath] = useState(() => cachedShop?.imagePath || '');
+  const [loading, setLoading] = useState(() => !cachedShop);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [success, setSuccess] = useState('');

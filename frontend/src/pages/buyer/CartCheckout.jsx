@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { useCart } from '../../context/CartContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../api/apiClient';
+import { orderService } from '../../services/OrderService';
 import { Trash2, Plus, Minus, ArrowLeft, ShoppingBag, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { RazorpayModal } from '../../components/RazorpayModal';
 
 export const CartCheckout = () => {
-  const { cart, shop, subtotal, deliveryFee, totalAmount, updateQuantity, removeFromCart, clearCart } = useCart();
+  const { cart, shop, subtotal, deliveryFee, totalAmount, updateQuantity, removeFromCart, clearCart, cartModel } = useCart();
   const navigate = useNavigate();
 
   const [buyerNote, setBuyerNote] = useState('');
@@ -35,7 +36,7 @@ export const CartCheckout = () => {
     setError('');
 
     try {
-      // 1. Backend Checkout API
+      // 1. Backend Checkout API via OOP OrderService
       const checkoutPayload = {
         shopId: shop.id,
         items: cart.map((item) => ({
@@ -45,7 +46,7 @@ export const CartCheckout = () => {
         buyerNote: buyerNote ? buyerNote.trim() : null,
       };
 
-      const order = await api.post('/orders/checkout', checkoutPayload);
+      const order = await orderService.checkout(checkoutPayload);
 
       // 2. Initialize Payment Order on Server
       const paymentOrder = await api.post('/payments/create-order', {

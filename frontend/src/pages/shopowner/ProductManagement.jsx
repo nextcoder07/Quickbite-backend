@@ -3,8 +3,9 @@ import { api } from '../../api/apiClient';
 import { Plus, Edit2, Trash2, X, Package, AlertCircle, Upload } from 'lucide-react';
 
 export const ProductManagement = () => {
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cachedProducts = api.getCache('/marketplace/owner/products');
+  const [products, setProducts] = useState(() => cachedProducts || []);
+  const [loading, setLoading] = useState(() => !cachedProducts);
   const [error, setError] = useState('');
 
   // Add / Edit Modal

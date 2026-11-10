@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../api/apiClient';
+import { marketplaceService } from '../../services/MarketplaceService';
 import { Link } from 'react-router-dom';
 import { Search, MapPin, Store, Clock, Utensils, Sparkles } from 'lucide-react';
-import { StatusBadge } from '../../components/StatusBadge';
 
 export const BrowseShops = () => {
   const [shops, setShops] = useState([]);
@@ -11,26 +10,24 @@ export const BrowseShops = () => {
   const [filterLocation, setFilterLocation] = useState('ALL');
 
   useEffect(() => {
+    let active = true;
     const fetchShops = async () => {
       try {
-        const data = await api.get('/marketplace/shops?includeClosed=true');
-        setShops(data);
+        const shopModels = await marketplaceService.getShops(true);
+        if (active) setShops(shopModels);
       } catch (err) {
         console.error('Failed to fetch shops:', err);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     fetchShops();
+    return () => { active = false; };
   }, []);
 
-  const filteredShops = shops.filter((shop) => {
-    const matchesSearch = shop.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (shop.description && shop.description.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesLocation = filterLocation === 'ALL' || shop.campusLocation.toLowerCase().includes(filterLocation.toLowerCase());
-    return matchesSearch && matchesLocation;
-  });
+  // Leveraging Shop domain method for search matching
+  const filteredShops = shops.filter((shop) => shop.matchesSearch(searchTerm, filterLocation));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
@@ -106,6 +103,8 @@ export const BrowseShops = () => {
                 <img
                   src={shop.imagePath || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600&auto=format&fit=crop'}
                   alt={shop.name}
+                  loading="lazy"
+                  decoding="async"
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
                 <div style={{
@@ -115,7 +114,7 @@ export const BrowseShops = () => {
                   display: 'flex',
                   gap: '6px'
                 }}>
-                  {shop.open ? (
+                  {shop.isOpen ? (
                     <span className="badge badge-success"><Clock size={12} /> OPEN NOW</span>
                   ) : (
                     <span className="badge badge-danger"><Clock size={12} /> CLOSED</span>
