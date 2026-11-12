@@ -15,6 +15,7 @@ public record OrderResponse(
         Long buyerId,
         String buyerName,
         OrderStatus status,
+        String deliveryOtp,
         BigDecimal subtotal,
         BigDecimal deliveryFee,
         BigDecimal discountAmount,
@@ -28,6 +29,14 @@ public record OrderResponse(
         List<OrderItemDto> items
 ) {
     public static OrderResponse from(CustomerOrder order) {
+        return from(order, false);
+    }
+
+    public static OrderResponse forBuyer(CustomerOrder order) {
+        return from(order, true);
+    }
+
+    private static OrderResponse from(CustomerOrder order, boolean includeDeliveryOtp) {
         List<OrderItemDto> itemDtos = order.getItems().stream()
                 .map(OrderItemDto::from)
                 .toList();
@@ -40,6 +49,9 @@ public record OrderResponse(
                 order.getBuyer().getId(),
                 order.getBuyer().getDisplayName(),
                 order.getStatus(),
+                includeDeliveryOtp && order.getStatus() == OrderStatus.OUT_FOR_DELIVERY
+                        ? order.getDeliveryOtpForBuyer()
+                        : null,
                 order.getSubtotal(),
                 order.getDeliveryFee(),
                 order.getDiscountAmount(),

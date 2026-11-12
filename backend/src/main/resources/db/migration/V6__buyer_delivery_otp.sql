@@ -1,0 +1,7 @@
+ALTER TABLE orders
+    ADD COLUMN IF NOT EXISTS delivery_otp VARCHAR(6);
+
+UPDATE orders
+SET delivery_otp = LPAD(FLOOR(RANDOM() * 1000000)::INT::TEXT, 6, '0')
+WHERE status NOT IN ('DELIVERED', 'CANCELLED', 'REJECTED')
+  AND delivery_otp IS NULL;

@@ -25,8 +25,8 @@ export class DeliveryService extends BaseService {
     return await this.post(`/${assignmentId}/pickup`);
   }
 
-  async markDelivered(assignmentId) {
-    return await this.post(`/${assignmentId}/deliver`);
+  async markDelivered(assignmentId, otp) {
+    return await this.post(`/${assignmentId}/deliver`, { otp });
   }
 
   async reportFailure(assignmentId, reason = 'Delivery failure') {

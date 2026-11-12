@@ -206,6 +206,26 @@ export const OrderHistory = () => {
                   </div>
                 )}
 
+                {order.status === 'OUT_FOR_DELIVERY' && order.deliveryOtp && (
+                  <div style={{
+                    padding: '14px 16px',
+                    borderRadius: '10px',
+                    background: 'rgba(16, 185, 129, 0.1)',
+                    border: '1px solid rgba(16, 185, 129, 0.35)',
+                    marginBottom: '14px'
+                  }}>
+                    <div style={{ color: '#6ee7b7', fontSize: '0.82rem', fontWeight: 700, marginBottom: '6px' }}>
+                      DELIVERY VERIFICATION CODE
+                    </div>
+                    <div style={{ color: '#fff', fontSize: '1.5rem', fontWeight: 800, letterSpacing: '0.25em' }}>
+                      {order.deliveryOtp}
+                    </div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginTop: '6px' }}>
+                      Share this code with your delivery partner only when your order is handed to you.
+                    </div>
+                  </div>
+                )}
+
                 {/* Action buttons */}
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                   {canCancel && (

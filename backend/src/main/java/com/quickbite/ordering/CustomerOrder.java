@@ -2,19 +2,26 @@ package com.quickbite.ordering;
 
 import com.quickbite.buyer.User;
 import com.quickbite.common.enums.OrderStatus;
+import com.quickbite.common.exception.BadRequestException;
 import com.quickbite.common.exception.InvalidStateTransitionException;
 import com.quickbite.shop.Shop;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 @Entity
 @Table(name = "orders")
 public class CustomerOrder {
+
+    private static final SecureRandom OTP_RANDOM = new SecureRandom();
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -65,6 +72,9 @@ public class CustomerOrder {
     @Column(name = "cancellation_reason", columnDefinition = "TEXT")
     private String cancellationReason;
 
+    @Column(name = "delivery_otp", length = 6)
+    private String deliveryOtp;
+
     @Column(name = "placed_at", nullable = false, updatable = false)
     private Instant placedAt;
 
@@ -92,6 +102,7 @@ public class CustomerOrder {
         this.deliveryAddress = deliveryAddress != null && !deliveryAddress.isBlank() ? deliveryAddress.trim() : null;
         this.deliveryLatitude = deliveryLatitude;
         this.deliveryLongitude = deliveryLongitude;
+        this.deliveryOtp = String.format(Locale.ROOT, "%06d", OTP_RANDOM.nextInt(1_000_000));
         this.status = OrderStatus.PLACED;
         this.placedAt = Instant.now();
         this.updatedAt = Instant.now();
@@ -174,6 +185,10 @@ public class CustomerOrder {
         return cancellationReason;
     }
 
+    public String getDeliveryOtpForBuyer() {
+        return deliveryOtp;
+    }
+
     public Instant getPlacedAt() {
         return placedAt;
     }
@@ -183,12 +198,30 @@ public class CustomerOrder {
     }
 
     public void transitionTo(OrderStatus newStatus) {
+        if (newStatus == OrderStatus.DELIVERED) {
+            throw new InvalidStateTransitionException("A buyer OTP is required to complete delivery");
+        }
         if (!isValidTransition(this.status, newStatus)) {
             throw new InvalidStateTransitionException(
                     "Invalid order transition from " + this.status + " to " + newStatus
             );
         }
         this.status = newStatus;
+        this.updatedAt = Instant.now();
+    }
+
+    public void completeDelivery(String otp) {
+        if (this.status != OrderStatus.OUT_FOR_DELIVERY) {
+            throw new InvalidStateTransitionException("Only an order out for delivery can be completed");
+        }
+        if (otp == null || deliveryOtp == null
+                || !MessageDigest.isEqual(
+                        deliveryOtp.getBytes(StandardCharsets.US_ASCII),
+                        otp.trim().getBytes(StandardCharsets.US_ASCII))) {
+            throw new BadRequestException("The delivery OTP is incorrect");
+        }
+        this.status = OrderStatus.DELIVERED;
+        this.deliveryOtp = null;
         this.updatedAt = Instant.now();
     }
 

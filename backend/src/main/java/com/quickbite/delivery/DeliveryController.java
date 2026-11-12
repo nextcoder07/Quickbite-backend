@@ -1,9 +1,11 @@
 package com.quickbite.delivery;
 
 import com.quickbite.delivery.dto.DeliveryResponse;
+import com.quickbite.delivery.dto.CompleteDeliveryRequest;
 import com.quickbite.security.CurrentAccountPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -55,11 +57,12 @@ public class DeliveryController {
     }
 
     @PostMapping("/{assignmentId}/deliver")
-    @Operation(summary = "Mark order delivered", description = "Transitions status to DELIVERED and marks customer order DELIVERED")
+    @Operation(summary = "Confirm delivery with buyer OTP", description = "Completes delivery only after validating the buyer's six-digit OTP")
     public ResponseEntity<DeliveryResponse> markDelivered(
             @AuthenticationPrincipal CurrentAccountPrincipal principal,
-            @PathVariable Long assignmentId) {
-        return ResponseEntity.ok(deliveryService.markDelivered(principal, assignmentId));
+            @PathVariable Long assignmentId,
+            @Valid @RequestBody CompleteDeliveryRequest request) {
+        return ResponseEntity.ok(deliveryService.markDelivered(principal, assignmentId, request.otp()));
     }
 
     @PostMapping("/{assignmentId}/fail")

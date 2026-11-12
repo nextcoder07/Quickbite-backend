@@ -138,11 +138,12 @@ public class DeliveryAssignment {
         this.updatedAt = Instant.now();
     }
 
-    public void markDelivered(DeliveryPartner partner) {
+    public void markDelivered(DeliveryPartner partner, String otp) {
         validateAssignedPartner(partner);
         if (this.status != DeliveryStatus.PICKED_UP) {
             throw new InvalidStateTransitionException("Only picked up delivery can be marked delivered");
         }
+        order.completeDelivery(otp);
         this.status = DeliveryStatus.DELIVERED;
         this.deliveredAt = Instant.now();
         this.updatedAt = Instant.now();

@@ -16,6 +16,7 @@ export class Order extends BaseModel {
     this.buyerId = data.buyerId !== undefined ? Number(data.buyerId) : null;
     this.buyerName = data.buyerName || '';
     this.status = data.status || 'PLACED'; // PLACED, ACCEPTED, PREPARING, READY, OUT_FOR_DELIVERY, DELIVERED, CANCELLED, REJECTED
+    this.deliveryOtp = data.deliveryOtp || '';
     this.subtotal = Number(data.subtotal) || 0;
     this.deliveryFee = Number(data.deliveryFee) || 0;
     this.discountAmount = Number(data.discountAmount) || 0;
@@ -104,4 +105,3 @@ export class Order extends BaseModel {
     }
   }
 }
-

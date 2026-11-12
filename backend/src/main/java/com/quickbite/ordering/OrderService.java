@@ -75,7 +75,7 @@ public class OrderService {
 
     @Transactional
     public OrderResponse checkout(CurrentAccountPrincipal principal, CheckoutRequest request) {
-        return OrderResponse.from(createPlacedOrder(principal, request));
+        return OrderResponse.forBuyer(createPlacedOrder(principal, request));
     }
 
     @Transactional
@@ -246,7 +246,7 @@ public class OrderService {
         User buyer = getBuyer(principal);
         return orderRepository.findByBuyerIdOrderByPlacedAtDesc(buyer.getId())
                 .stream()
-                .map(OrderResponse::from)
+                .map(OrderResponse::forBuyer)
                 .toList();
     }
 
@@ -300,15 +300,8 @@ public class OrderService {
                     throw new ForbiddenException("Shop is not verified/active to update order status");
                 }
             }
-            case OUT_FOR_DELIVERY, DELIVERED -> {
-                // Must be delivery partner assigned to this order
-                DeliveryAssignment assignment = deliveryAssignmentRepository.findByOrderId(order.getId())
-                        .orElseThrow(() -> new BadRequestException("No delivery assignment found for this order"));
-                if (assignment.getDeliveryPartner() == null ||
-                        !assignment.getDeliveryPartner().getIdentity().getId().equals(principal.getIdentityId())) {
-                    throw new ForbiddenException("Only the assigned delivery partner can update transit status");
-                }
-            }
+            case OUT_FOR_DELIVERY, DELIVERED ->
+                    throw new BadRequestException("Delivery status must be updated through the delivery workflow");
             default -> {}
         }
     }

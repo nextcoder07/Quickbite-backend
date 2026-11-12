@@ -2,6 +2,7 @@ package com.quickbite.ordering;
 
 import com.quickbite.buyer.User;
 import com.quickbite.common.enums.OrderStatus;
+import com.quickbite.common.exception.BadRequestException;
 import com.quickbite.common.exception.InvalidStateTransitionException;
 import com.quickbite.identity.AccountIdentity;
 import com.quickbite.shop.Shop;
@@ -45,8 +46,24 @@ class OrderStateTransitionTest {
         order.transitionTo(OrderStatus.OUT_FOR_DELIVERY);
         assertEquals(OrderStatus.OUT_FOR_DELIVERY, order.getStatus());
 
-        order.transitionTo(OrderStatus.DELIVERED);
+        assertTrue(order.getDeliveryOtpForBuyer().matches("\\d{6}"));
+        order.completeDelivery(order.getDeliveryOtpForBuyer());
         assertEquals(OrderStatus.DELIVERED, order.getStatus());
+        assertNull(order.getDeliveryOtpForBuyer());
+    }
+
+    @Test
+    @DisplayName("Should require the buyer OTP before completing delivery")
+    void testDeliveryRequiresOtp() {
+        order.transitionTo(OrderStatus.ACCEPTED);
+        order.transitionTo(OrderStatus.PREPARING);
+        order.transitionTo(OrderStatus.READY);
+        order.transitionTo(OrderStatus.OUT_FOR_DELIVERY);
+
+        assertThrows(InvalidStateTransitionException.class, () -> order.transitionTo(OrderStatus.DELIVERED));
+        String wrongOtp = "000000".equals(order.getDeliveryOtpForBuyer()) ? "000001" : "000000";
+        assertThrows(BadRequestException.class, () -> order.completeDelivery(wrongOtp));
+        assertEquals(OrderStatus.OUT_FOR_DELIVERY, order.getStatus());
     }
 
     @Test

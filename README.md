@@ -88,6 +88,9 @@ graph TD
   - **Admins** can sign up with `ADMIN_SIGNUP_KEY` (immediately verified) or by Admin Verification (`PENDING` until approved by an active Admin); suspending or reactivating another Admin requires `ADMIN_SIGNUP_KEY`.
 - **Concurrent Delivery Acceptance DB Lock**:
   - `DeliveryService.claimAssignment` runs under `@Transactional(isolation = Isolation.READ_COMMITTED)` using pessimistic write locking, `@Version` optimistic locking, and conditional JPQL update returning `409 Conflict` to competing couriers.
+- **Buyer-verified Delivery Completion**:
+  - Each new order gets a six-digit OTP; the buyer sees it when the order is out for delivery, and the assigned courier must enter it to mark the order delivered.
+  - The OTP is cleared after successful handover; delivery-partner and shop-owner order responses do not include it.
 - **Personalized & Cold-Start Buyer Discovery**:
   - Default Buyer page (`/`) ranks items via `RecommendationService`, and `/shops` loads approved shops upfront with search filters by shop name, product/item, or location.
 
@@ -95,7 +98,7 @@ graph TD
 
 ## 📊 Database Schema & Migrations
 
-Managed via Flyway migrations (`V1__initial_schema.sql` through `V4__admin_verification_and_requests.sql`) in Supabase PostgreSQL across 16 tables (`account_identities`, `users`, `delivery_partners`, `shop_owners`, `admins`, `shops`, `products`, `orders`, `order_items`, `payments`, `refunds`, `delivery_assignments`, `account_deletion_requests`, `feedback`, `disputes`, `audit_logs`).
+Managed via Flyway migrations (`V1__initial_schema.sql` through `V6__buyer_delivery_otp.sql`) in Supabase PostgreSQL across 16 tables (`account_identities`, `users`, `delivery_partners`, `shop_owners`, `admins`, `shops`, `products`, `orders`, `order_items`, `payments`, `refunds`, `delivery_assignments`, `account_deletion_requests`, `feedback`, `disputes`, `audit_logs`).
 
 ---
 

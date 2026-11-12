@@ -30,6 +30,10 @@ export const DeliveryDashboard = () => {
   const [failedAssignment, setFailedAssignment] = useState(null);
   const [failureReason, setFailureReason] = useState('');
   const [failing, setFailing] = useState(false);
+  const [deliveryAssignment, setDeliveryAssignment] = useState(null);
+  const [deliveryOtp, setDeliveryOtp] = useState('');
+  const [deliveryError, setDeliveryError] = useState('');
+  const [delivering, setDelivering] = useState(false);
 
   const fetchDeliveries = async () => {
     try {
@@ -77,12 +81,20 @@ export const DeliveryDashboard = () => {
     }
   };
 
-  const handleDelivered = async (assignmentId) => {
+  const handleDelivered = async (e) => {
+    e.preventDefault();
+    if (!deliveryAssignment) return;
+    setDelivering(true);
+    setDeliveryError('');
     try {
-      await deliveryService.markDelivered(assignmentId);
+      await deliveryService.markDelivered(deliveryAssignment.id, deliveryOtp.trim());
+      setDeliveryAssignment(null);
+      setDeliveryOtp('');
       fetchDeliveries();
     } catch (err) {
-      await dialog.alert({ title: 'Delivery Update Failed', message: err.message || 'Failed to mark delivered' });
+      setDeliveryError(err.message || 'Failed to confirm delivery');
+    } finally {
+      setDelivering(false);
     }
   };
 
@@ -212,8 +224,15 @@ export const DeliveryDashboard = () => {
                   )}
 
                   {d.status === 'PICKED_UP' && (
-                    <button onClick={() => handleDelivered(d.id)} className="btn btn-success btn-sm">
-                      <CheckCircle2 size={14} /> Confirm Customer Handover
+                    <button
+                      onClick={() => {
+                        setDeliveryAssignment(d);
+                        setDeliveryOtp('');
+                        setDeliveryError('');
+                      }}
+                      className="btn btn-success btn-sm"
+                    >
+                      <CheckCircle2 size={14} /> Enter Buyer OTP
                     </button>
                   )}
 
@@ -276,6 +295,67 @@ export const DeliveryDashboard = () => {
           </div>
         )}
       </div>
+
+      {deliveryAssignment && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '420px', padding: '26px', background: '#161922' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h3 style={{ fontSize: '1.2rem' }}>Confirm Customer Handover</h3>
+              <button
+                type="button"
+                onClick={() => setDeliveryAssignment(null)}
+                style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}
+                aria-label="Close OTP dialog"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginBottom: '16px' }}>
+              Ask the buyer for the six-digit code shown in their order history to confirm handover for order #{deliveryAssignment.orderNumber}.
+            </p>
+            <form onSubmit={handleDelivered}>
+              <div className="form-group">
+                <label className="form-label" htmlFor="delivery-otp">Buyer OTP</label>
+                <input
+                  id="delivery-otp"
+                  className="form-input"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  value={deliveryOtp}
+                  onChange={(e) => setDeliveryOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="Enter 6-digit OTP"
+                  required
+                />
+              </div>
+              {deliveryError && (
+                <div role="alert" style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '12px' }}>
+                  {deliveryError}
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={delivering || deliveryOtp.length !== 6}
+                className="btn btn-success"
+                style={{ width: '100%', marginTop: '8px' }}
+              >
+                {delivering ? 'Verifying OTP...' : 'Verify OTP & Complete Delivery'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Failure Reporting Modal */}
       {failedAssignment && (

@@ -142,9 +142,8 @@ public class TestDataSeeder implements CommandLineRunner {
         sampleOrder.transitionTo(OrderStatus.PREPARING);
         sampleOrder.transitionTo(OrderStatus.READY);
         sampleOrder.transitionTo(OrderStatus.OUT_FOR_DELIVERY);
-        sampleOrder.transitionTo(OrderStatus.DELIVERED);
+        sampleOrder.completeDelivery(sampleOrder.getDeliveryOtpForBuyer());
         sampleOrder = orderRepository.save(sampleOrder);
         feedbackRepository.save(new Feedback(sampleOrder, buyer, 5, "Best paneer tikka roll and biryani in the neighborhood!"));
     }
 }
-

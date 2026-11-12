@@ -103,7 +103,7 @@ public class CheckoutPaymentService {
                 )
         );
 
-        return OrderResponse.from(savedOrder);
+        return OrderResponse.forBuyer(savedOrder);
     }
 
     private Optional<OrderResponse> findExistingCapturedOrder(
@@ -119,7 +119,6 @@ public class CheckoutPaymentService {
         if (principal == null || !existing.getOrder().getBuyer().getIdentity().getId().equals(principal.getIdentityId())) {
             throw new ForbiddenException("Payment reference belongs to a different account");
         }
-        return Optional.of(OrderResponse.from(existing.getOrder()));
+        return Optional.of(OrderResponse.forBuyer(existing.getOrder()));
     }
 }
-

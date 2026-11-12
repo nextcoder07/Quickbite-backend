@@ -75,7 +75,7 @@ class RecommendationServiceTest {
         order.transitionTo(OrderStatus.PREPARING);
         order.transitionTo(OrderStatus.READY);
         order.transitionTo(OrderStatus.OUT_FOR_DELIVERY);
-        order.transitionTo(OrderStatus.DELIVERED);
+        order.completeDelivery(order.getDeliveryOtpForBuyer());
         order = orderRepository.save(order);
         feedbackRepository.save(new Feedback(order, existingBuyer, 5, "Great sourdough pizza!"));
     }

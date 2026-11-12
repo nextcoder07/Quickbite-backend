@@ -129,13 +129,13 @@ public class DeliveryService {
         DeliveryAssignment assignment = deliveryAssignmentRepository.findByIdForUpdate(assignmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Delivery assignment not found"));
 
-        assignment.markPickedUp(partner);
-
         CustomerOrder order = assignment.getOrder();
-        if (order.getStatus() == OrderStatus.READY || order.getStatus() == OrderStatus.PREPARING) {
-            order.transitionTo(OrderStatus.OUT_FOR_DELIVERY);
-            orderRepository.save(order);
+        if (order.getStatus() != OrderStatus.READY) {
+            throw new InvalidStateTransitionException("Order must be ready before it can be picked up");
         }
+        assignment.markPickedUp(partner);
+        order.transitionTo(OrderStatus.OUT_FOR_DELIVERY);
+        orderRepository.save(order);
 
         DeliveryAssignment saved = deliveryAssignmentRepository.save(assignment);
         auditService.record(partner.getIdentity(), "DELIVERY_PICKED_UP", "DELIVERY", String.valueOf(saved.getId()), null);
@@ -144,15 +144,13 @@ public class DeliveryService {
     }
 
     @Transactional
-    public DeliveryResponse markDelivered(CurrentAccountPrincipal principal, Long assignmentId) {
+    public DeliveryResponse markDelivered(CurrentAccountPrincipal principal, Long assignmentId, String otp) {
         DeliveryPartner partner = getVerifiedDeliveryPartner(principal);
         DeliveryAssignment assignment = deliveryAssignmentRepository.findByIdForUpdate(assignmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Delivery assignment not found"));
 
-        assignment.markDelivered(partner);
-
         CustomerOrder order = assignment.getOrder();
-        order.transitionTo(OrderStatus.DELIVERED);
+        assignment.markDelivered(partner, otp);
         orderRepository.save(order);
 
         DeliveryAssignment saved = deliveryAssignmentRepository.save(assignment);

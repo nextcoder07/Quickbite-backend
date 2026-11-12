@@ -2,6 +2,8 @@ package com.quickbite.delivery;
 
 import com.quickbite.buyer.User;
 import com.quickbite.common.enums.DeliveryStatus;
+import com.quickbite.common.enums.OrderStatus;
+import com.quickbite.common.exception.BadRequestException;
 import com.quickbite.common.exception.ForbiddenException;
 import com.quickbite.identity.AccountIdentity;
 import com.quickbite.ordering.CustomerOrder;
@@ -21,10 +23,11 @@ class DeliveryStateTransitionTest {
     private DeliveryAssignment assignment;
     private DeliveryPartner partner1;
     private DeliveryPartner partner2;
+    private CustomerOrder order;
 
     @BeforeEach
     void setUp() {
-        CustomerOrder order = new CustomerOrder(
+        order = new CustomerOrder(
                 "QB-202",
                 new User(new AccountIdentity("b", "b@campus.edu"), "Buyer", "123"),
                 new Shop(new ShopOwner(new AccountIdentity("o", "o@campus.edu"), "Owner", "456"), "Shop", "D", "L", null),
@@ -46,12 +49,34 @@ class DeliveryStateTransitionTest {
         assignment.assignTo(partner1);
         assignment.accept(partner1);
         assignment.markPickedUp(partner1);
+        order.transitionTo(OrderStatus.ACCEPTED);
+        order.transitionTo(OrderStatus.PREPARING);
+        order.transitionTo(OrderStatus.READY);
+        order.transitionTo(OrderStatus.OUT_FOR_DELIVERY);
 
         // Partner 2 attempts to deliver Partner 1's assignment
-        assertThrows(ForbiddenException.class, () -> assignment.markDelivered(partner2));
+        assertThrows(ForbiddenException.class, () -> assignment.markDelivered(partner2, order.getDeliveryOtpForBuyer()));
 
         // Partner 1 completes delivery
-        assignment.markDelivered(partner1);
+        assignment.markDelivered(partner1, order.getDeliveryOtpForBuyer());
         assertEquals(DeliveryStatus.DELIVERED, assignment.getStatus());
+        assertEquals(OrderStatus.DELIVERED, order.getStatus());
+    }
+
+    @Test
+    @DisplayName("Should keep delivery active when the buyer OTP is incorrect")
+    void testIncorrectOtpDoesNotCompleteDelivery() {
+        assignment.assignTo(partner1);
+        assignment.accept(partner1);
+        assignment.markPickedUp(partner1);
+        order.transitionTo(OrderStatus.ACCEPTED);
+        order.transitionTo(OrderStatus.PREPARING);
+        order.transitionTo(OrderStatus.READY);
+        order.transitionTo(OrderStatus.OUT_FOR_DELIVERY);
+
+        String wrongOtp = "000000".equals(order.getDeliveryOtpForBuyer()) ? "000001" : "000000";
+        assertThrows(BadRequestException.class, () -> assignment.markDelivered(partner1, wrongOtp));
+        assertEquals(DeliveryStatus.PICKED_UP, assignment.getStatus());
+        assertEquals(OrderStatus.OUT_FOR_DELIVERY, order.getStatus());
     }
 }

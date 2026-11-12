@@ -16,7 +16,7 @@ QuickBite is an enterprise-grade desktop campus food marketplace backend built w
 Located under `com.quickbite`:
 - `identity`: Shared authentication identity (`AccountIdentity`), registration, profile exclusivity validation.
 - `buyer`: Buyer profile (`User`), profile updates, buyer self-deactivation.
-- `delivery`: Delivery partner profile (`DeliveryPartner`), assignments (`DeliveryAssignment`), pickup/drop status tracking.
+- `delivery`: Delivery partner profile (`DeliveryPartner`), assignments (`DeliveryAssignment`), pickup/drop status tracking, and buyer-OTP verification for delivery completion.
 - `shop`: Shop Owner profile (`ShopOwner`), campus shop entity (`Shop`), product catalog (`Product`), inventory management.
 - `ordering`: Orders (`CustomerOrder`), snapshot line items (`OrderItem`), order lifecycle state machine, atomic stock decrement.
 - `payment`: Razorpay test gateway (`RazorpayGateway`), payments (`Payment`), capped refunds (`Refund`), webhooks.
@@ -38,7 +38,7 @@ Migrated via `db/migration/V1__initial_schema.sql`:
 5. `admins`: Provisioned administrator profiles.
 6. `shops`: Campus shops with separate approval and open/closed operational status.
 7. `products`: Menu catalog with nonnegative price and stock constraints.
-8. `orders`: Authoritative backend pricing with `total = subtotal + fee - discount`.
+8. `orders`: Authoritative backend pricing with `total = subtotal + fee - discount`, plus buyer OTP verification for delivery completion.
 9. `order_items`: Immutable snapshots of product name and unit price.
 10. `payments`: Razorpay transaction attempts, idempotency keys, and verified timestamps.
 11. `refunds`: Reversals capped against captured balances.
