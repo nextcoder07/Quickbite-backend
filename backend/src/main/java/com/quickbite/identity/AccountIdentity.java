@@ -18,9 +18,6 @@ public class AccountIdentity {
     @Column(name = "email", nullable = false, length = 255)
     private String email;
 
-    @Column(name = "password_hash", length = 255)
-    private String passwordHash;
-
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -63,15 +60,6 @@ public class AccountIdentity {
 
     public String getEmail() {
         return email;
-    }
-
-    public String getPasswordHash() {
-        return passwordHash;
-    }
-
-    public void setPasswordHash(String passwordHash) {
-        this.passwordHash = passwordHash;
-        this.updatedAt = Instant.now();
     }
 
     public Instant getCreatedAt() {

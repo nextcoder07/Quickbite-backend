@@ -17,7 +17,6 @@ import com.quickbite.ordering.OrderItem;
 import com.quickbite.shop.*;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Profile;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,7 +38,6 @@ public class TestDataSeeder implements CommandLineRunner {
     private final ProductRepository productRepository;
     private final CustomerOrderRepository orderRepository;
     private final FeedbackRepository feedbackRepository;
-    private final PasswordEncoder passwordEncoder;
 
     public TestDataSeeder(
             AccountIdentityRepository identityRepository,
@@ -50,8 +48,7 @@ public class TestDataSeeder implements CommandLineRunner {
             ShopRepository shopRepository,
             ProductRepository productRepository,
             CustomerOrderRepository orderRepository,
-            FeedbackRepository feedbackRepository,
-            PasswordEncoder passwordEncoder) {
+            FeedbackRepository feedbackRepository) {
         this.identityRepository = identityRepository;
         this.adminRepository = adminRepository;
         this.userRepository = userRepository;
@@ -61,7 +58,6 @@ public class TestDataSeeder implements CommandLineRunner {
         this.productRepository = productRepository;
         this.orderRepository = orderRepository;
         this.feedbackRepository = feedbackRepository;
-        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
@@ -72,31 +68,21 @@ public class TestDataSeeder implements CommandLineRunner {
             return;
         }
 
-        String starterHash = passwordEncoder.encode("QuickBite@123");
-
-        AccountIdentity adminIdentity = new AccountIdentity("uid-admin-01", "admin@quickbite.com");
-        adminIdentity.setPasswordHash(starterHash);
-        adminIdentity = identityRepository.save(adminIdentity);
+        AccountIdentity adminIdentity = identityRepository.save(new AccountIdentity("uid-admin-01", "admin@quickbite.com"));
         adminRepository.save(new Admin(adminIdentity, "Platform Operations Admin"));
 
-        AccountIdentity buyerIdentity = new AccountIdentity("uid-buyer-01", "buyer@quickbite.com");
-        buyerIdentity.setPasswordHash(starterHash);
-        buyerIdentity = identityRepository.save(buyerIdentity);
+        AccountIdentity buyerIdentity = identityRepository.save(new AccountIdentity("uid-buyer-01", "buyer@quickbite.com"));
         User buyer = new User(buyerIdentity, "Aarav Sharma", "9876543210");
         buyer.updateDeliveryLocation("221B MG Road, Indiranagar, Bengaluru", 12.9784, 77.6408);
         buyer.updateFoodInterests("Paneer, Biryani, Dosa");
         buyer = userRepository.save(buyer);
 
-        AccountIdentity dpIdentity = new AccountIdentity("uid-dp-01", "delivery@quickbite.com");
-        dpIdentity.setPasswordHash(starterHash);
-        dpIdentity = identityRepository.save(dpIdentity);
+        AccountIdentity dpIdentity = identityRepository.save(new AccountIdentity("uid-dp-01", "delivery@quickbite.com"));
         DeliveryPartner dp = new DeliveryPartner(dpIdentity, "Rohan Patel", "9123456789", "Scooter - KA01QB101", "Central & Indiranagar");
         dp.approveVerification();
         deliveryPartnerRepository.save(dp);
 
-        AccountIdentity ownerIdentity = new AccountIdentity("uid-owner-01", "shop@quickbite.com");
-        ownerIdentity.setPasswordHash(starterHash);
-        ownerIdentity = identityRepository.save(ownerIdentity);
+        AccountIdentity ownerIdentity = identityRepository.save(new AccountIdentity("uid-owner-01", "shop@quickbite.com"));
         ShopOwner owner = shopOwnerRepository.save(new ShopOwner(ownerIdentity, "Chef Vikram Das", "9988776655"));
 
         Shop shop = new Shop(
