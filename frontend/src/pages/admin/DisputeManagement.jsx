@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { adminService } from '../../services/AdminService';
 import { StatusBadge } from '../../components/StatusBadge';
 import { AlertCircle, Check, X, MessageSquare } from 'lucide-react';
+import { useDialog } from '../../context/DialogContext';
 
 export const DisputeManagement = () => {
+  const dialog = useDialog();
   const [disputes, setDisputes] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -23,17 +25,21 @@ export const DisputeManagement = () => {
   }, []);
 
   const handleResolve = async (disputeId, resolve) => {
-    const note = prompt(
-      resolve ? 'Enter dispute resolution note for student & shop:' : 'Enter dispute rejection reason:',
-      resolve ? 'Refund authorized and shop notified' : 'Dispute claim could not be verified'
-    );
+    const note = await dialog.prompt({
+      title: resolve ? 'Resolve Dispute' : 'Reject Dispute',
+      message: resolve ? 'Enter dispute resolution note for buyer & shop:' : 'Enter dispute rejection reason:',
+      defaultValue: resolve ? 'Refund authorized and shop notified' : 'Dispute claim could not be verified',
+      required: true,
+      confirmText: resolve ? 'Resolve Dispute' : 'Reject Dispute',
+      danger: !resolve,
+    });
     if (note === null) return;
 
     try {
       await adminService.resolveDispute(disputeId, resolve, note);
       fetchDisputes();
     } catch (err) {
-      alert(err.message || 'Action failed');
+      await dialog.alert({ title: 'Dispute Action Failed', message: err.message || 'Action failed' });
     }
   };
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../api/apiClient';
 import { orderService } from '../../services/OrderService';
 import { StatusBadge } from '../../components/StatusBadge';
+import { useDialog } from '../../context/DialogContext';
 import {
   Clock,
   Store,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 
 export const OrderHistory = () => {
+  const dialog = useDialog();
   const cachedOrders = api.getCache('/orders/buyer');
   const [orders, setOrders] = useState(() => cachedOrders || []);
   const [loading, setLoading] = useState(() => !cachedOrders);
@@ -50,14 +52,22 @@ export const OrderHistory = () => {
   }, []);
 
   const handleCancelOrder = async (orderId) => {
-    const reason = prompt('Please enter cancellation reason:', 'Changed my mind');
+    const reason = await dialog.prompt({
+      title: 'Cancel Order',
+      message: 'Please provide a reason for cancelling this order.',
+      label: 'Cancellation Reason',
+      placeholder: 'e.g. Changed my mind',
+      defaultValue: 'Changed my mind',
+      confirmText: 'Cancel Order',
+      danger: true,
+    });
     if (reason === null) return;
 
     try {
-      await orderService.cancelOrder(orderId, reason);
+      await orderService.cancelOrder(orderId, reason.trim() || 'Cancelled by buyer');
       fetchOrders();
     } catch (err) {
-      alert(err.message || 'Failed to cancel order');
+      await dialog.alert({ title: 'Could Not Cancel Order', message: err.message || 'Failed to cancel order' });
     }
   };
 
@@ -67,12 +77,12 @@ export const OrderHistory = () => {
     setFeedbackSubmitting(true);
     try {
       await orderService.submitFeedback(feedbackOrder.id, rating, comment);
-      alert('Thank you! Your review has been submitted.');
       setFeedbackOrder(null);
       setComment('');
       fetchOrders();
+      await dialog.alert({ title: 'Review Submitted', message: 'Thank you! Your review has been submitted.', tone: 'success' });
     } catch (err) {
-      alert(err.message || 'Failed to submit review');
+      await dialog.alert({ title: 'Review Failed', message: err.message || 'Failed to submit review' });
     } finally {
       setFeedbackSubmitting(false);
     }
@@ -84,12 +94,12 @@ export const OrderHistory = () => {
     setDisputeSubmitting(true);
     try {
       await orderService.raiseDispute(disputeOrder.id, disputeCategory, disputeDescription);
-      alert('Dispute submitted for platform administrator review.');
       setDisputeOrder(null);
       setDisputeDescription('');
       fetchOrders();
+      await dialog.alert({ title: 'Dispute Submitted', message: 'Dispute submitted for platform administrator review.', tone: 'success' });
     } catch (err) {
-      alert(err.message || 'Failed to raise dispute');
+      await dialog.alert({ title: 'Dispute Failed', message: err.message || 'Failed to raise dispute' });
     } finally {
       setDisputeSubmitting(false);
     }

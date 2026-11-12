@@ -3,8 +3,10 @@ import { api } from '../../api/apiClient';
 import { StatusBadge } from '../../components/StatusBadge';
 import { LocationPicker } from '../../components/LocationPicker';
 import { AlertTriangle, CheckCircle2, Upload } from 'lucide-react';
+import { useDialog } from '../../context/DialogContext';
 
 export const ShopSettings = () => {
+  const dialog = useDialog();
   const cachedShop = api.getCache('/marketplace/owner/shop');
   const [shop, setShop] = useState(() => cachedShop || null);
   const [name, setName] = useState(() => cachedShop?.name || '');
@@ -33,7 +35,10 @@ export const ShopSettings = () => {
         setImagePath(res.url);
       }
     } catch (err) {
-      alert('Upload to Supabase failed: ' + (err.message || 'Please check your connection'));
+      await dialog.alert({
+        title: 'Image Upload Failed',
+        message: 'Upload to Supabase failed: ' + (err.message || 'Please check your connection'),
+      });
     } finally {
       setUploading(false);
     }
@@ -104,10 +109,14 @@ export const ShopSettings = () => {
         reason: deletionReason.trim(),
       });
       setDeletionReason('');
-      alert('Account deletion request submitted for administrative review.');
+      await dialog.alert({
+        title: 'Request Submitted',
+        message: 'Account deletion request submitted for administrative review.',
+        tone: 'success',
+      });
       fetchShop();
     } catch (err) {
-      alert(err.message || 'Failed to submit deletion request');
+      await dialog.alert({ title: 'Submission Failed', message: err.message || 'Failed to submit deletion request' });
     } finally {
       setSubmittingDeletion(false);
     }

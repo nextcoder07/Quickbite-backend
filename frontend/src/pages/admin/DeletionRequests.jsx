@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { adminService } from '../../services/AdminService';
 import { StatusBadge } from '../../components/StatusBadge';
 import { ClipboardList, Check, X, AlertTriangle } from 'lucide-react';
+import { useDialog } from '../../context/DialogContext';
 
 export const DeletionRequests = () => {
+  const dialog = useDialog();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -23,17 +25,22 @@ export const DeletionRequests = () => {
   }, []);
 
   const handleReview = async (requestId, confirm) => {
-    const note = prompt(
-      confirm ? 'Optional review note for confirming deletion:' : 'Reason for declining deletion request:',
-      confirm ? 'Approved by administration' : 'Orders pending fulfillment'
-    );
+    const note = await dialog.prompt({
+      title: confirm ? 'Confirm Account Deletion' : 'Decline Deletion Request',
+      message: confirm
+        ? 'Optional review note for confirming account removal:'
+        : 'Enter reason for declining this deletion request:',
+      defaultValue: confirm ? 'Approved by administration' : 'Orders pending fulfillment',
+      confirmText: confirm ? 'Confirm Deletion' : 'Decline Request',
+      danger: confirm,
+    });
     if (note === null) return;
 
     try {
       await adminService.reviewDeletionRequest(requestId, confirm, note);
       fetchRequests();
     } catch (err) {
-      alert(err.message || 'Review action failed');
+      await dialog.alert({ title: 'Review Action Failed', message: err.message || 'Review action failed' });
     }
   };
 

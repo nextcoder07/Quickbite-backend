@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { adminService } from '../../services/AdminService';
 import { StatusBadge } from '../../components/StatusBadge';
 import { RotateCcw, Check, X, ShieldCheck } from 'lucide-react';
+import { useDialog } from '../../context/DialogContext';
 
 export const RefundManagement = () => {
+  const dialog = useDialog();
   const [refunds, setRefunds] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -23,17 +25,21 @@ export const RefundManagement = () => {
   }, []);
 
   const handleReview = async (refundId, approve) => {
-    const note = prompt(
-      approve ? 'Enter reason for refund approval:' : 'Enter reason for refund rejection:',
-      approve ? 'Approved per campus refund policy' : 'Refund not eligible'
-    );
+    const note = await dialog.prompt({
+      title: approve ? 'Approve Refund' : 'Reject Refund',
+      message: approve ? 'Enter reason for refund approval:' : 'Enter reason for refund rejection:',
+      defaultValue: approve ? 'Approved per QuickBite refund policy' : 'Refund not eligible',
+      required: true,
+      confirmText: approve ? 'Approve Refund' : 'Reject Refund',
+      danger: !approve,
+    });
     if (note === null) return;
 
     try {
       await adminService.reviewRefund(refundId, approve, note);
       fetchRefunds();
     } catch (err) {
-      alert(err.message || 'Refund review failed');
+      await dialog.alert({ title: 'Refund Review Failed', message: err.message || 'Refund review failed' });
     }
   };
 

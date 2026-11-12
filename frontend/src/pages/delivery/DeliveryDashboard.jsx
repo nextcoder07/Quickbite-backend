@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../api/apiClient';
 import { deliveryService } from '../../services/DeliveryService';
 import { StatusBadge } from '../../components/StatusBadge';
+import { useDialog } from '../../context/DialogContext';
 import {
   Bike,
   MapPin,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 
 export const DeliveryDashboard = () => {
+  const dialog = useDialog();
   const cachedAvail = api.getCache('/delivery/available');
   const cachedMy = api.getCache('/delivery/my');
   const [availableDeliveries, setAvailableDeliveries] = useState(() => cachedAvail || []);
@@ -71,7 +73,7 @@ export const DeliveryDashboard = () => {
       await deliveryService.markPickedUp(assignmentId);
       fetchDeliveries();
     } catch (err) {
-      alert(err.message || 'Failed to mark picked up');
+      await dialog.alert({ title: 'Pickup Update Failed', message: err.message || 'Failed to mark picked up' });
     }
   };
 
@@ -80,7 +82,7 @@ export const DeliveryDashboard = () => {
       await deliveryService.markDelivered(assignmentId);
       fetchDeliveries();
     } catch (err) {
-      alert(err.message || 'Failed to mark delivered');
+      await dialog.alert({ title: 'Delivery Update Failed', message: err.message || 'Failed to mark delivered' });
     }
   };
 
@@ -94,7 +96,7 @@ export const DeliveryDashboard = () => {
       setFailureReason('');
       fetchDeliveries();
     } catch (err) {
-      alert(err.message || 'Failed to report failure');
+      await dialog.alert({ title: 'Failure Report Failed', message: err.message || 'Failed to report failure' });
     } finally {
       setFailing(false);
     }

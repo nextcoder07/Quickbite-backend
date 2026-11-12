@@ -21,6 +21,24 @@ export class OrderService extends BaseService {
   }
 
   /**
+   * Validates cart and initiates payment before creating any order
+   * @param {Object} checkoutPayload
+   */
+  async initiatePaymentCheckout(checkoutPayload) {
+    return await this.client.post('/payments/checkout/initiate', checkoutPayload);
+  }
+
+  /**
+   * Verifies payment and atomically creates the order on the server
+   * @param {Object} completePayload
+   * @returns {Promise<Order>}
+   */
+  async completePaymentCheckout(completePayload) {
+    const rawData = await this.client.post('/payments/checkout/complete', completePayload);
+    return new Order(rawData);
+  }
+
+  /**
    * Retrieves all orders placed by the current authenticated buyer
    * @returns {Promise<Order[]>}
    */

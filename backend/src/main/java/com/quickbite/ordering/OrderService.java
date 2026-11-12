@@ -55,8 +55,70 @@ public class OrderService {
         this.auditService = auditService;
     }
 
+    private record PreparedCheckout(
+            User buyer,
+            Shop shop,
+            List<ProductQuantity> productQuantities,
+            List<OrderItem> orderItems,
+            PricingService.PricingCalculation pricing,
+            String resolvedAddress,
+            Double deliveryLat,
+            Double deliveryLng
+    ) {}
+
+    private record ProductQuantity(Product product, int quantity) {}
+
+    @Transactional(readOnly = true)
+    public PricingService.PricingCalculation previewCheckout(CurrentAccountPrincipal principal, CheckoutRequest request) {
+        return prepareCheckout(principal, request).pricing();
+    }
+
     @Transactional
     public OrderResponse checkout(CurrentAccountPrincipal principal, CheckoutRequest request) {
+        return OrderResponse.from(createPlacedOrder(principal, request));
+    }
+
+    @Transactional
+    public CustomerOrder createPlacedOrder(CurrentAccountPrincipal principal, CheckoutRequest request) {
+        PreparedCheckout prepared = prepareCheckout(principal, request);
+
+        for (ProductQuantity pq : prepared.productQuantities()) {
+            pq.product().decrementStock(pq.quantity());
+            productRepository.save(pq.product());
+        }
+
+        String orderNumber = "QB-" + System.currentTimeMillis() + "-" + UUID.randomUUID().toString().substring(0, 5).toUpperCase();
+
+        CustomerOrder order = new CustomerOrder(
+                orderNumber,
+                prepared.buyer(),
+                prepared.shop(),
+                prepared.pricing().subtotal(),
+                prepared.pricing().deliveryFee(),
+                prepared.pricing().discountAmount(),
+                request.buyerNote(),
+                prepared.resolvedAddress(),
+                prepared.deliveryLat(),
+                prepared.deliveryLng()
+        );
+
+        for (OrderItem item : prepared.orderItems()) {
+            order.addItem(item);
+        }
+
+        CustomerOrder savedOrder = orderRepository.save(order);
+
+        // Create default unassigned delivery assignment
+        DeliveryAssignment assignment = new DeliveryAssignment(savedOrder);
+        deliveryAssignmentRepository.save(assignment);
+
+        auditService.record(prepared.buyer().getIdentity(), "ORDER_PLACED", "ORDER", savedOrder.getOrderNumber(),
+                Map.of("totalAmount", savedOrder.getTotalAmount().toString(), "shopId", prepared.shop().getId()));
+
+        return savedOrder;
+    }
+
+    private PreparedCheckout prepareCheckout(CurrentAccountPrincipal principal, CheckoutRequest request) {
         User buyer = getBuyer(principal);
         if (!buyer.isActive()) {
             throw new ForbiddenException("Account is not active. Checkout is prohibited.");
@@ -74,14 +136,15 @@ public class OrderService {
         }
 
         // Deduplicate product items and validate
-        Map<Long, Integer> productQuantities = new HashMap<>();
+        Map<Long, Integer> productQuantitiesMap = new HashMap<>();
         for (OrderItemRequest itemReq : request.items()) {
-            productQuantities.merge(itemReq.productId(), itemReq.quantity(), Integer::sum);
+            productQuantitiesMap.merge(itemReq.productId(), itemReq.quantity(), Integer::sum);
         }
 
+        List<ProductQuantity> productQuantities = new ArrayList<>();
         List<OrderItem> orderItems = new ArrayList<>();
 
-        for (Map.Entry<Long, Integer> entry : productQuantities.entrySet()) {
+        for (Map.Entry<Long, Integer> entry : productQuantitiesMap.entrySet()) {
             Long productId = entry.getKey();
             int qty = entry.getValue();
 
@@ -96,17 +159,11 @@ public class OrderService {
                 throw new BadRequestException("Product " + product.getName() + " is out of stock or has insufficient quantity");
             }
 
-            // Atomically decrement stock
-            product.decrementStock(qty);
-            productRepository.save(product);
-
-            OrderItem orderItem = new OrderItem(product, product.getName(), product.getPrice(), qty);
-            orderItems.add(orderItem);
+            productQuantities.add(new ProductQuantity(product, qty));
+            orderItems.add(new OrderItem(product, product.getName(), product.getPrice(), qty));
         }
 
         PricingService.PricingCalculation pricing = pricingService.calculatePricing(orderItems);
-
-        String orderNumber = "QB-" + System.currentTimeMillis() + "-" + UUID.randomUUID().toString().substring(0, 5).toUpperCase();
 
         String resolvedAddress = request.deliveryAddress();
         if ((resolvedAddress == null || resolvedAddress.isBlank()) && buyer.getDefaultAddress() != null && !buyer.getDefaultAddress().isBlank()) {
@@ -118,33 +175,16 @@ public class OrderService {
         Double deliveryLat = request.deliveryLatitude() != null ? request.deliveryLatitude() : buyer.getDefaultLatitude();
         Double deliveryLng = request.deliveryLongitude() != null ? request.deliveryLongitude() : buyer.getDefaultLongitude();
 
-        CustomerOrder order = new CustomerOrder(
-                orderNumber,
+        return new PreparedCheckout(
                 buyer,
                 shop,
-                pricing.subtotal(),
-                pricing.deliveryFee(),
-                pricing.discountAmount(),
-                request.buyerNote(),
+                productQuantities,
+                orderItems,
+                pricing,
                 resolvedAddress,
                 deliveryLat,
                 deliveryLng
         );
-
-        for (OrderItem item : orderItems) {
-            order.addItem(item);
-        }
-
-        CustomerOrder savedOrder = orderRepository.save(order);
-
-        // Create default unassigned delivery assignment
-        DeliveryAssignment assignment = new DeliveryAssignment(savedOrder);
-        deliveryAssignmentRepository.save(assignment);
-
-        auditService.record(buyer.getIdentity(), "ORDER_PLACED", "ORDER", savedOrder.getOrderNumber(),
-                Map.of("totalAmount", savedOrder.getTotalAmount().toString(), "shopId", shop.getId()));
-
-        return OrderResponse.from(savedOrder);
     }
 
     @Transactional

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { Cart } from '../models/Cart';
 import { Shop } from '../models/Shop';
+import { useDialog } from './DialogContext';
 
 const CartContext = createContext(null);
 
@@ -8,6 +9,7 @@ const CART_STORAGE_KEY = 'qb_cart';
 const SHOP_STORAGE_KEY = 'qb_cart_shop';
 
 export const CartProvider = ({ children }) => {
+  const dialog = useDialog();
   const [cartState, setCartState] = useState(() => {
     try {
       const savedItems = localStorage.getItem(CART_STORAGE_KEY);
@@ -30,30 +32,35 @@ export const CartProvider = ({ children }) => {
     }
   }, [cartState]);
 
-  const addToCart = useCallback((product, targetShop) => {
-    let result = false;
-    setCartState((prevCart) => {
-      // Re-hydrate or clone Cart instance
-      const cart = new Cart(prevCart.items, prevCart.shop);
-      const addResult = cart.addItem(product, targetShop, false);
+  const addToCart = useCallback(async (product, targetShop) => {
+    const checkCart = new Cart(cartState.items, cartState.shop);
+    const check = checkCart.addItem(product, targetShop, false);
 
-      if (addResult.conflict) {
-        const confirmSwitch = window.confirm(
-          `Your cart contains items from "${addResult.existingShop.name}". Would you like to clear your cart and add items from "${addResult.newShop.name}" instead?`
-        );
-        if (!confirmSwitch) {
-          result = false;
-          return prevCart;
-        }
-        // User confirmed: force reset and add
-        cart.addItem(product, targetShop, true);
+    if (check.conflict) {
+      const confirmSwitch = await dialog.confirm({
+        title: 'Switch Shop in Cart?',
+        message: `Your cart contains items from "${check.existingShop.name}". Clear your cart and add items from "${check.newShop.name}" instead?`,
+        confirmText: 'Clear & Add Item',
+        danger: true,
+      });
+      if (!confirmSwitch) {
+        return false;
       }
+      setCartState((prevCart) => {
+        const nextCart = new Cart(prevCart.items, prevCart.shop);
+        nextCart.addItem(product, targetShop, true);
+        return nextCart;
+      });
+      return true;
+    }
 
-      result = true;
-      return cart;
+    setCartState((prevCart) => {
+      const nextCart = new Cart(prevCart.items, prevCart.shop);
+      const res = nextCart.addItem(product, targetShop, false);
+      return res.conflict ? prevCart : nextCart;
     });
-    return result;
-  }, []);
+    return true;
+  }, [cartState, dialog]);
 
   const updateQuantity = useCallback((productId, delta) => {
     setCartState((prevCart) => {

@@ -1,5 +1,7 @@
 package com.quickbite.payment;
 
+import com.quickbite.ordering.dto.CheckoutRequest;
+import com.quickbite.ordering.dto.OrderResponse;
 import com.quickbite.payment.dto.*;
 import com.quickbite.security.CurrentAccountPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,9 +22,29 @@ import java.util.Map;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final CheckoutPaymentService checkoutPaymentService;
 
-    public PaymentController(PaymentService paymentService) {
+    public PaymentController(PaymentService paymentService, CheckoutPaymentService checkoutPaymentService) {
         this.paymentService = paymentService;
+        this.checkoutPaymentService = checkoutPaymentService;
+    }
+
+    @PostMapping("/checkout/initiate")
+    @PreAuthorize("hasRole('BUYER')")
+    @Operation(summary = "Initiate payment before placing order", description = "Validates cart and stock, computes total, and creates payment gateway order without creating a DB order yet")
+    public ResponseEntity<InitiateCheckoutPaymentResponse> initiateCheckoutPayment(
+            @AuthenticationPrincipal CurrentAccountPrincipal principal,
+            @Valid @RequestBody CheckoutRequest request) {
+        return ResponseEntity.ok(checkoutPaymentService.initiateCheckout(principal, request));
+    }
+
+    @PostMapping("/checkout/complete")
+    @PreAuthorize("hasRole('BUYER')")
+    @Operation(summary = "Complete payment and create order", description = "Verifies payment signature first, then atomically creates the order and records captured payment")
+    public ResponseEntity<OrderResponse> completeCheckoutPayment(
+            @AuthenticationPrincipal CurrentAccountPrincipal principal,
+            @Valid @RequestBody CompleteCheckoutPaymentRequest request) {
+        return new ResponseEntity<>(checkoutPaymentService.completeCheckout(principal, request), HttpStatus.CREATED);
     }
 
     @PostMapping("/create-order")

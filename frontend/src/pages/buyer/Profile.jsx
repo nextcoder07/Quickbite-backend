@@ -6,8 +6,10 @@ import { AlertTriangle, CheckCircle2, Shield } from 'lucide-react';
 import { StatusBadge } from '../../components/StatusBadge';
 import { LocationPicker } from '../../components/LocationPicker';
 import { FoodInterestSelector } from '../../components/FoodInterestSelector';
+import { useDialog } from '../../context/DialogContext';
 
 export const Profile = () => {
+  const dialog = useDialog();
   const { user, account, updateProfile, refreshAccount, logout } = useAuth();
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState(user?.displayName || '');
@@ -63,18 +65,22 @@ export const Profile = () => {
   };
 
   const handleDeactivate = async () => {
-    const confirmDeactivate = window.confirm(
-      'Are you sure you want to deactivate your buyer account? Your order, payment, and refund records will be safely preserved, but you will not be able to place new orders.'
-    );
+    const confirmDeactivate = await dialog.confirm({
+      title: 'Deactivate Buyer Account?',
+      message:
+        'Are you sure you want to deactivate your buyer account? Your order, payment, and refund records will be safely preserved, but you will not be able to place new orders.',
+      confirmText: 'Deactivate Account',
+      danger: true,
+    });
     if (!confirmDeactivate) return;
 
     try {
       await api.post('/account/deactivate');
-      alert('Your account has been deactivated. Logging out now.');
+      await dialog.alert({ title: 'Account Deactivated', message: 'Your account has been deactivated. Logging out now.', tone: 'success' });
       await logout();
       navigate('/login', { replace: true });
     } catch (err) {
-      alert(err.message || 'Deactivation failed');
+      await dialog.alert({ title: 'Deactivation Failed', message: err.message || 'Deactivation failed' });
     }
   };
 

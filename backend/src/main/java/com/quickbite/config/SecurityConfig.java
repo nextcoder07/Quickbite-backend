@@ -76,7 +76,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/storage/**").hasAnyRole("SHOP_OWNER", "ADMIN")
                         .requestMatchers("/api/v1/marketplace/owner/**", "/api/v1/orders/shop/**").hasRole("SHOP_OWNER")
                         .requestMatchers("/api/v1/delivery/**").hasRole("DELIVERY_PARTNER")
-                        .requestMatchers("/api/v1/orders/checkout", "/api/v1/orders/buyer/**").hasRole("BUYER")
+                        .requestMatchers("/api/v1/orders/checkout", "/api/v1/orders/buyer/**", "/api/v1/payments/checkout/**").hasRole("BUYER")
 
                         // Authenticated endpoints
                         .anyRequest().authenticated()

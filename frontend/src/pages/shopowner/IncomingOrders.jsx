@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { shopOwnerService } from '../../services/ShopOwnerService';
 import { StatusBadge } from '../../components/StatusBadge';
 import { ShoppingBag, Check, X, ChefHat, CheckCircle2, MessageSquare, MapPin, ExternalLink } from 'lucide-react';
+import { useDialog } from '../../context/DialogContext';
 
 export const IncomingOrders = () => {
+  const dialog = useDialog();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -30,7 +32,7 @@ export const IncomingOrders = () => {
       await shopOwnerService.updateOrderStatus(orderId, newStatus);
       fetchShopOrders();
     } catch (err) {
-      alert(err.message || 'Status transition failed');
+      await dialog.alert({ title: 'Order Status Failed', message: err.message || 'Status transition failed' });
     }
   };
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { CreditCard, Smartphone, Building, ShieldCheck, X, CheckCircle, AlertTriangle } from 'lucide-react';
 
-export const RazorpayModal = ({ isOpen, onClose, orderId, orderNumber, amount, onPaymentSuccess }) => {
+export const RazorpayModal = ({ isOpen, onClose, orderId, orderNumber, providerOrderId, amount, onPaymentSuccess }) => {
   const [selectedMethod, setSelectedMethod] = useState('card');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -9,18 +9,19 @@ export const RazorpayModal = ({ isOpen, onClose, orderId, orderNumber, amount, o
   if (!isOpen) return null;
 
   const handleSimulatePayment = async () => {
+    if (loading) return;
     setLoading(true);
     setError('');
 
     try {
       // Simulate Razorpay client callback
       const mockPaymentId = `pay_test_${Date.now().toString(36)}${Math.random().toString(36).substring(2, 6)}`;
-      const mockOrderId = `order_test_${orderId}`;
+      const resolvedOrderId = providerOrderId || `order_test_${orderId}`;
       const mockSignature = 'test_signature';
 
       await onPaymentSuccess({
         orderId,
-        providerOrderId: mockOrderId,
+        providerOrderId: resolvedOrderId,
         providerPaymentId: mockPaymentId,
         signature: mockSignature,
       });
@@ -78,7 +79,9 @@ export const RazorpayModal = ({ isOpen, onClose, orderId, orderNumber, amount, o
               }}>TEST MODE</span>
               <h3 style={{ fontSize: '1.2rem', color: '#fff', margin: 0 }}>Razorpay Checkout</h3>
             </div>
-            <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '4px 0 0 0' }}>Order #{orderNumber}</p>
+            <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '4px 0 0 0' }}>
+              {orderNumber ? `Order #${orderNumber}` : `Payment Ref: ${providerOrderId}`}
+            </p>
           </div>
           <button
             onClick={onClose}

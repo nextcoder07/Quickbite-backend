@@ -2,6 +2,7 @@ import React from 'react';
 import { HashRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
+import { DialogProvider } from './context/DialogContext';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 
@@ -75,8 +76,9 @@ const MainLayout = () => {
 
 export const App = () => {
   return (
-    <AuthProvider>
-      <CartProvider>
+    <DialogProvider>
+      <AuthProvider>
+        <CartProvider>
         <HashRouter>
           <Routes>
             {/* Public Auth Routes */}
@@ -124,6 +126,7 @@ export const App = () => {
         </HashRouter>
       </CartProvider>
     </AuthProvider>
+    </DialogProvider>
   );
 };
 

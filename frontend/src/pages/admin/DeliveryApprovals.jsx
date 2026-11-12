@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { adminService } from '../../services/AdminService';
 import { StatusBadge } from '../../components/StatusBadge';
 import { Bike, Check, X, Ban, Phone, Mail, Award, Clock, MapPin } from 'lucide-react';
+import { useDialog } from '../../context/DialogContext';
 
 export const DeliveryApprovals = () => {
+  const dialog = useDialog();
   const [partners, setPartners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('ALL');
@@ -34,13 +36,19 @@ export const DeliveryApprovals = () => {
       DEACTIVATED: 'remove / deactivate from platform',
     };
     const actionName = labelMap[newStatus] || newStatus;
-    if (!window.confirm(`Are you sure you want to ${actionName} this delivery partner?`)) return;
+    const confirmed = await dialog.confirm({
+      title: 'Confirm Delivery Partner Action',
+      message: `Are you sure you want to ${actionName} this delivery partner?`,
+      confirmText: 'Proceed',
+      danger: ['REJECTED', 'SUSPENDED', 'DEACTIVATED'].includes(newStatus),
+    });
+    if (!confirmed) return;
 
     try {
       await adminService.reviewDeliveryPartnerStatus(partnerId, newStatus);
       fetchPartners();
     } catch (err) {
-      alert(err.message || 'Status transition failed');
+      await dialog.alert({ title: 'Status Update Failed', message: err.message || 'Status transition failed' });
     }
   };
 

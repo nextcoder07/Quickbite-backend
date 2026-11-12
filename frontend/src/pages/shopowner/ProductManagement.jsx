@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../api/apiClient';
 import { shopOwnerService } from '../../services/ShopOwnerService';
 import { Plus, Edit2, Trash2, X, Package, AlertCircle, Upload } from 'lucide-react';
+import { useDialog } from '../../context/DialogContext';
 
 export const ProductManagement = () => {
+  const dialog = useDialog();
   const cachedProducts = api.getCache('/marketplace/owner/products');
   const [products, setProducts] = useState(() => cachedProducts || []);
   const [loading, setLoading] = useState(() => !cachedProducts);
@@ -33,7 +35,10 @@ export const ProductManagement = () => {
         setImagePath(res.url);
       }
     } catch (err) {
-      alert('Upload to Supabase failed: ' + (err.message || 'Please check your connection and storage configuration'));
+      await dialog.alert({
+        title: 'Image Upload Failed',
+        message: 'Upload to Supabase failed: ' + (err.message || 'Please check your connection and storage configuration'),
+      });
     } finally {
       setUploading(false);
     }
@@ -106,12 +111,18 @@ export const ProductManagement = () => {
   };
 
   const handleDeleteProduct = async (productId) => {
-    if (!window.confirm('Are you sure you want to delete this product?')) return;
+    const confirmed = await dialog.confirm({
+      title: 'Delete Menu Item?',
+      message: 'Are you sure you want to delete this product?',
+      confirmText: 'Delete Item',
+      danger: true,
+    });
+    if (!confirmed) return;
     try {
       await shopOwnerService.deleteProduct(productId);
       fetchProducts();
     } catch (err) {
-      alert(err.message || 'Failed to delete product');
+      await dialog.alert({ title: 'Delete Failed', message: err.message || 'Failed to delete product' });
     }
   };
 

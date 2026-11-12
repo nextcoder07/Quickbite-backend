@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
-import { api } from '../../api/apiClient';
 import { orderService } from '../../services/OrderService';
 import { LocationPicker } from '../../components/LocationPicker';
 import { Trash2, Plus, Minus, ArrowLeft, ShoppingBag, ShieldCheck } from 'lucide-react';
@@ -49,7 +48,7 @@ export const CartCheckout = () => {
     setError('');
 
     try {
-      // 1. Backend Checkout API via Cart aggregate + OOP OrderService
+      // 1. Validate cart & initiate payment order on Server (does not create order yet)
       const checkoutPayload = cartModel.toCheckoutPayload(
         deliveryLocation.address,
         buyerNote,
@@ -57,17 +56,12 @@ export const CartCheckout = () => {
         deliveryLocation.longitude
       );
 
-      const order = await orderService.checkout(checkoutPayload);
-
-      // 2. Initialize Payment Order on Server
-      await api.post('/payments/create-order', {
-        orderId: order.id,
-      });
+      const paymentInit = await orderService.initiatePaymentCheckout(checkoutPayload);
 
       setActivePaymentOrder({
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        amount: order.totalAmount,
+        checkoutPayload,
+        providerOrderId: paymentInit.providerOrderId,
+        amount: paymentInit.totalAmount,
       });
 
       setIsPaymentModalOpen(true);
@@ -79,8 +73,13 @@ export const CartCheckout = () => {
   };
 
   const handlePaymentSuccess = async (verifyData) => {
-    // 3. Server-side signature verification
-    await api.post('/payments/verify', verifyData);
+    // 2. Verify payment signature first, then atomically create the order on server
+    await orderService.completePaymentCheckout({
+      checkout: activePaymentOrder.checkoutPayload,
+      providerOrderId: verifyData.providerOrderId,
+      providerPaymentId: verifyData.providerPaymentId,
+      signature: verifyData.signature,
+    });
     clearCart();
     navigate('/orders');
   };
@@ -277,8 +276,7 @@ export const CartCheckout = () => {
         <RazorpayModal
           isOpen={isPaymentModalOpen}
           onClose={() => setIsPaymentModalOpen(false)}
-          orderId={activePaymentOrder.orderId}
-          orderNumber={activePaymentOrder.orderNumber}
+          providerOrderId={activePaymentOrder.providerOrderId}
           amount={activePaymentOrder.amount}
           onPaymentSuccess={handlePaymentSuccess}
         />

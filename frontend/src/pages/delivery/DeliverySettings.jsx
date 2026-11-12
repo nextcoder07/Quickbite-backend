@@ -3,8 +3,10 @@ import { useAuth } from '../../context/AuthContext';
 import { deliveryService } from '../../services/DeliveryService';
 import { StatusBadge } from '../../components/StatusBadge';
 import { Bike, ShieldCheck, AlertTriangle, Send, CheckCircle2, Phone, Mail, Clock } from 'lucide-react';
+import { useDialog } from '../../context/DialogContext';
 
 export const DeliverySettings = () => {
+  const dialog = useDialog();
   const { user } = useAuth();
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -35,7 +37,13 @@ export const DeliverySettings = () => {
       return;
     }
 
-    if (!window.confirm('Are you sure you want to submit an account removal request? An Administrator must confirm it before your profile is removed.')) {
+    const confirmed = await dialog.confirm({
+      title: 'Submit Account Removal Request?',
+      message: 'Are you sure you want to submit an account removal request? An Administrator must confirm it before your profile is removed.',
+      confirmText: 'Submit Request',
+      danger: true,
+    });
+    if (!confirmed) {
       return;
     }
 

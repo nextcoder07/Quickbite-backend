@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { adminService } from '../../services/AdminService';
 import { StatusBadge } from '../../components/StatusBadge';
 import { Check, X, Ban, MapPin, Trash2, ExternalLink } from 'lucide-react';
+import { useDialog } from '../../context/DialogContext';
 
 export const ShopApprovals = () => {
+  const dialog = useDialog();
   const [shops, setShops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('ALL');
@@ -24,22 +26,34 @@ export const ShopApprovals = () => {
   }, []);
 
   const handleReview = async (shopId, newStatus) => {
-    if (!window.confirm(`Confirm setting shop verification status to ${newStatus}?`)) return;
+    const confirmed = await dialog.confirm({
+      title: 'Confirm Shop Status Change',
+      message: `Confirm setting shop verification status to ${newStatus}?`,
+      confirmText: 'Confirm',
+      danger: ['REJECTED', 'SUSPENDED'].includes(newStatus),
+    });
+    if (!confirmed) return;
     try {
       await adminService.reviewShopStatus(shopId, newStatus);
       fetchShops();
     } catch (err) {
-      alert(err.message || 'Status transition failed');
+      await dialog.alert({ title: 'Status Update Failed', message: err.message || 'Status transition failed' });
     }
   };
 
   const handleDeactivateShop = async (shopId) => {
-    if (!window.confirm('Confirm removing/deactivating this shop from the platform? Active orders must already be closed.')) return;
+    const confirmed = await dialog.confirm({
+      title: 'Remove / Deactivate Shop',
+      message: 'Confirm removing/deactivating this shop from the platform? Active orders must already be closed.',
+      confirmText: 'Remove Shop',
+      danger: true,
+    });
+    if (!confirmed) return;
     try {
       await adminService.deactivateShop(shopId);
       fetchShops();
     } catch (err) {
-      alert(err.message || 'Failed to remove shop');
+      await dialog.alert({ title: 'Removal Failed', message: err.message || 'Failed to remove shop' });
     }
   };
 

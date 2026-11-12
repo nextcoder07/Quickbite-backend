@@ -14,8 +14,10 @@ import {
   Upload,
   ExternalLink,
 } from 'lucide-react';
+import { useDialog } from '../../context/DialogContext';
 
 export const ShopDashboard = () => {
+  const dialog = useDialog();
   const { refreshAccount } = useAuth();
   const cachedShop = api.getCache('/marketplace/owner/shop');
   const cachedProducts = api.getCache('/marketplace/owner/products');
@@ -47,7 +49,10 @@ export const ShopDashboard = () => {
         setImagePath(res.url);
       }
     } catch (err) {
-      alert('Upload to Supabase failed: ' + (err.message || 'Please check your connection'));
+      await dialog.alert({
+        title: 'Image Upload Failed',
+        message: 'Upload to Supabase failed: ' + (err.message || 'Please check your connection'),
+      });
     } finally {
       setUploading(false);
     }
@@ -112,7 +117,7 @@ export const ShopDashboard = () => {
       });
       setShop(updated);
     } catch (err) {
-      alert(err.message || 'Failed to toggle shop status');
+      await dialog.alert({ title: 'Shop Status Failed', message: err.message || 'Failed to toggle shop status' });
     }
   };
 
