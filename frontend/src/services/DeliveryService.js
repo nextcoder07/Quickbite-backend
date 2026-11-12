@@ -10,11 +10,11 @@ export class DeliveryService extends BaseService {
   }
 
   async getAvailableDeliveries() {
-    return await this.get('/available');
+    return await this.get('/available', { skipCache: true });
   }
 
   async getMyDeliveries() {
-    return await this.get('/my');
+    return await this.get('/my', { skipCache: true });
   }
 
   async claimAssignment(assignmentId) {

@@ -46,8 +46,8 @@ export class ShopOwnerService extends BaseService {
     return await this.delete(`/products/${productId}`);
   }
 
-  async getIncomingOrders() {
-    const rawData = await this.client.get('/orders/shop');
+  async getIncomingOrders(options = {}) {
+    const rawData = await this.client.get('/orders/shop', {}, { skipCache: true, ...options });
     if (!Array.isArray(rawData)) return [];
     return rawData.map((data) => new Order(data));
   }

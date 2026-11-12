@@ -25,7 +25,7 @@ export class OrderService extends BaseService {
    * @returns {Promise<Order[]>}
    */
   async getBuyerOrders() {
-    const rawData = await this.get('/buyer');
+    const rawData = await this.get('/buyer', { skipCache: true });
     if (!Array.isArray(rawData)) return [];
     return rawData.map((data) => new Order(data));
   }
@@ -36,7 +36,7 @@ export class OrderService extends BaseService {
    * @returns {Promise<Order>}
    */
   async getOrderById(orderId) {
-    const rawData = await this.get(`/${orderId}`);
+    const rawData = await this.get(`/${orderId}`, { skipCache: true });
     return new Order(rawData);
   }
 

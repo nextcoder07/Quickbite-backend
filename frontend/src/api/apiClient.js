@@ -6,7 +6,7 @@ if (!API_BASE_URL) {
 class ApiClient {
   constructor() {
     this.cache = new Map();
-    this.defaultTtl = 60 * 1000; // 60 seconds instant cache
+    this.defaultTtl = 0; // 0ms cache TTL so order/delivery status updates have zero stale delay
     this.tokenProvider = null;
   }
 
@@ -44,7 +44,10 @@ class ApiClient {
   getCache(endpoint, maxAgeMs) {
     const token = localStorage.getItem('qb_token') || 'anon';
     const cacheKey = `${token}:${endpoint}`;
-    const ttl = maxAgeMs || this.defaultTtl;
+    const ttl = maxAgeMs ?? this.defaultTtl;
+    if (ttl <= 0) {
+      return null;
+    }
 
     // 1. In-memory instant lookup
     const memoryCached = this.cache.get(cacheKey);
@@ -139,10 +142,10 @@ class ApiClient {
     const token = localStorage.getItem('qb_token') || 'anon';
     const cacheKey = `${token}:${endpoint}`;
 
-    // Return instant cached response if valid (eliminates 1.5s roundtrip delay)
     if (!skipCache) {
-      const cached = this.cache.get(cacheKey);
-      if (cached && Date.now() - cached.timestamp < (options.ttl || this.defaultTtl)) {
+      const ttl = options.ttl ?? this.defaultTtl;
+      const cached = ttl > 0 ? this.cache.get(cacheKey) : null;
+      if (cached && Date.now() - cached.timestamp < ttl) {
         return cached.data;
       }
     }
