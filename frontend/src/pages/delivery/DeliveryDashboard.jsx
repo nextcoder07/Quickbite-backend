@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../api/apiClient';
+import { deliveryService } from '../../services/DeliveryService';
 import { StatusBadge } from '../../components/StatusBadge';
-import { 
-  Bike, 
-  MapPin, 
-  Store, 
-  CheckCircle2, 
-  PackageCheck, 
-  AlertTriangle, 
+import {
+  Bike,
+  MapPin,
+  Store,
+  CheckCircle2,
+  PackageCheck,
+  AlertTriangle,
   X,
-  Navigation
+  Navigation,
+  ExternalLink,
+  Phone,
+  MessageSquare,
 } from 'lucide-react';
 
 export const DeliveryDashboard = () => {
@@ -28,8 +32,8 @@ export const DeliveryDashboard = () => {
   const fetchDeliveries = async () => {
     try {
       const [avail, my] = await Promise.all([
-        api.get('/delivery/available'),
-        api.get('/delivery/my'),
+        deliveryService.getAvailableDeliveries(),
+        deliveryService.getMyDeliveries(),
       ]);
       setAvailableDeliveries(avail);
       setMyDeliveries(my);
@@ -47,17 +51,24 @@ export const DeliveryDashboard = () => {
   }, []);
 
   const handleClaim = async (assignmentId) => {
+    setError('');
     try {
-      await api.post(`/delivery/${assignmentId}/claim`);
+      await deliveryService.claimAssignment(assignmentId);
       fetchDeliveries();
     } catch (err) {
-      alert(err.message || 'Failed to claim delivery');
+      // Surface database lock / 409 conflict cleanly and refresh queue
+      setError(
+        err.status === 409
+          ? 'This delivery was just accepted by another partner. Queue refreshed.'
+          : err.message || 'Failed to claim delivery'
+      );
+      fetchDeliveries();
     }
   };
 
   const handlePickedUp = async (assignmentId) => {
     try {
-      await api.post(`/delivery/${assignmentId}/pickup`);
+      await deliveryService.markPickedUp(assignmentId);
       fetchDeliveries();
     } catch (err) {
       alert(err.message || 'Failed to mark picked up');
@@ -66,7 +77,7 @@ export const DeliveryDashboard = () => {
 
   const handleDelivered = async (assignmentId) => {
     try {
-      await api.post(`/delivery/${assignmentId}/deliver`);
+      await deliveryService.markDelivered(assignmentId);
       fetchDeliveries();
     } catch (err) {
       alert(err.message || 'Failed to mark delivered');
@@ -78,9 +89,7 @@ export const DeliveryDashboard = () => {
     if (!failedAssignment || !failureReason) return;
     setFailing(true);
     try {
-      await api.post(`/delivery/${failedAssignment.id}/fail`, {
-        reason: failureReason.trim(),
-      });
+      await deliveryService.reportFailure(failedAssignment.id, failureReason.trim());
       setFailedAssignment(null);
       setFailureReason('');
       fetchDeliveries();
@@ -98,9 +107,9 @@ export const DeliveryDashboard = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
       <div>
-        <h1 style={{ fontSize: '1.8rem', marginBottom: '4px' }}>Campus Delivery Fulfillment</h1>
+        <h1 style={{ fontSize: '1.8rem', marginBottom: '4px' }}>Delivery Fulfillment Board</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          Claim available campus orders, pick up from food shops, and deliver directly to students
+          Accept available orders (protected by database lock), pick up from shops, and deliver to customer locations
         </p>
       </div>
 
@@ -130,8 +139,13 @@ export const DeliveryDashboard = () => {
                       <span style={{ fontSize: '1.15rem', fontWeight: 800 }}>Order #{d.orderNumber}</span>
                       <StatusBadge status={d.status} />
                     </div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                      Buyer: <strong style={{ color: '#fff' }}>{d.buyerName}</strong>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      <span>Customer: <strong style={{ color: '#fff' }}>{d.buyerName}</strong></span>
+                      {d.buyerPhone && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <Phone size={12} color="#34d399" /> {d.buyerPhone}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -141,23 +155,51 @@ export const DeliveryDashboard = () => {
                 </div>
 
                 {/* Pickup & Drop Details */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', padding: '14px', background: 'var(--bg-surface)', borderRadius: '10px', marginBottom: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', padding: '14px', background: 'var(--bg-surface)', borderRadius: '10px', marginBottom: '14px' }}>
                   <div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-faint)', fontWeight: 700 }}>PICKUP LOCATION</div>
                     <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
                       <Store size={14} color="#ff6433" /> {d.shopName}
                     </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{d.shopLocation}</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>{d.shopLocation}</div>
+                    {d.shopLatitude != null && d.shopLongitude != null && (
+                      <a
+                        href={`https://www.google.com/maps?q=${d.shopLatitude},${d.shopLongitude}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ fontSize: '0.75rem', color: 'var(--brand-primary)', display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}
+                      >
+                        <ExternalLink size={11} /> Pickup Map Pin
+                      </a>
+                    )}
                   </div>
 
                   <div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-faint)', fontWeight: 700 }}>DROP DESTINATION</div>
                     <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
-                      <Navigation size={14} color="#3b82f6" /> Campus Delivery
+                      <Navigation size={14} color="#3b82f6" /> Customer Delivery Address
                     </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Direct handover to student</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      {d.deliveryAddress || 'Direct customer handover'}
+                    </div>
+                    {d.deliveryLatitude != null && d.deliveryLongitude != null && (
+                      <a
+                        href={`https://www.google.com/maps?q=${d.deliveryLatitude},${d.deliveryLongitude}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ fontSize: '0.75rem', color: '#60a5fa', display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}
+                      >
+                        <ExternalLink size={11} /> Drop Map Pin ({Number(d.deliveryLatitude).toFixed(4)}, {Number(d.deliveryLongitude).toFixed(4)})
+                      </a>
+                    )}
                   </div>
                 </div>
+
+                {d.buyerNote && (
+                  <div style={{ padding: '8px 12px', borderRadius: '8px', background: 'rgba(255, 87, 34, 0.08)', border: '1px solid rgba(255, 87, 34, 0.2)', fontSize: '0.8rem', color: '#fdba74', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <MessageSquare size={14} /> <span><strong>Note:</strong> {d.buyerNote}</span>
+                  </div>
+                )}
 
                 {/* Progress Actions */}
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
@@ -169,7 +211,7 @@ export const DeliveryDashboard = () => {
 
                   {d.status === 'PICKED_UP' && (
                     <button onClick={() => handleDelivered(d.id)} className="btn btn-success btn-sm">
-                      <CheckCircle2 size={14} /> Confirm Student Handover
+                      <CheckCircle2 size={14} /> Confirm Customer Handover
                     </button>
                   )}
 
@@ -209,9 +251,15 @@ export const DeliveryDashboard = () => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.88rem', color: '#fff', marginBottom: '4px' }}>
                     <Store size={14} color="#ff6433" /> {d.shopName}
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '14px' }}>
-                    {d.shopLocation}
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                    <strong>Pickup:</strong> {d.shopLocation}
                   </div>
+                  {d.deliveryAddress && (
+                    <div style={{ fontSize: '0.8rem', color: '#cbd5e1', marginBottom: '12px', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                      <MapPin size={14} color="#3b82f6" style={{ flexShrink: 0, marginTop: '2px' }} />
+                      <span><strong>Drop:</strong> {d.deliveryAddress}</span>
+                    </div>
+                  )}
                 </div>
 
                 <button
@@ -253,7 +301,7 @@ export const DeliveryDashboard = () => {
                 <textarea
                   className="form-textarea"
                   rows={3}
-                  placeholder="e.g. Student unreachable at location, food spilled..."
+                  placeholder="e.g. Customer unreachable at destination, order damaged..."
                   value={failureReason}
                   onChange={(e) => setFailureReason(e.target.value)}
                   required

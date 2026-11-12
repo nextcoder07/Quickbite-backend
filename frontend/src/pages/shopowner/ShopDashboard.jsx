@@ -1,21 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../api/apiClient';
+import { useAuth } from '../../context/AuthContext';
 import { shopOwnerService } from '../../services/ShopOwnerService';
 import { StatusBadge } from '../../components/StatusBadge';
-import { 
-  Store, 
-  MapPin, 
-  Clock, 
-  Power, 
-  Package, 
-  ShoppingBag, 
-  TrendingUp, 
+import { LocationPicker } from '../../components/LocationPicker';
+import {
+  MapPin,
+  Power,
+  Package,
+  ShoppingBag,
+  TrendingUp,
   AlertCircle,
-  Plus,
-  Upload
+  Upload,
+  ExternalLink,
 } from 'lucide-react';
 
 export const ShopDashboard = () => {
+  const { refreshAccount } = useAuth();
   const cachedShop = api.getCache('/marketplace/owner/shop');
   const cachedProducts = api.getCache('/marketplace/owner/products');
   const cachedOrders = api.getCache('/orders/shop');
@@ -26,10 +27,10 @@ export const ShopDashboard = () => {
   const [loading, setLoading] = useState(() => !cachedShop && !cachedProducts);
   const [error, setError] = useState('');
 
-  // Shop registration form for new shop owners
+  // Shop registration form for shop owners
   const [shopName, setShopName] = useState('');
   const [description, setDescription] = useState('');
-  const [campusLocation, setCampusLocation] = useState('');
+  const [shopLocation, setShopLocation] = useState({ address: '', latitude: null, longitude: null });
   const [imagePath, setImagePath] = useState('');
   const [creating, setCreating] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -88,10 +89,13 @@ export const ShopDashboard = () => {
       const res = await shopOwnerService.createShop({
         name: shopName.trim(),
         description: description.trim(),
-        campusLocation: campusLocation.trim(),
+        location: shopLocation.address.trim(),
+        latitude: shopLocation.latitude,
+        longitude: shopLocation.longitude,
         imagePath: imagePath ? imagePath.trim() : null,
       });
       setShop(res);
+      await refreshAccount();
       fetchShopData();
     } catch (err) {
       setError(err.message || 'Failed to register shop');
@@ -123,7 +127,7 @@ export const ShopDashboard = () => {
         <div>
           <h1 style={{ fontSize: '1.8rem', marginBottom: '6px' }}>Shop Application</h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-            Submit your campus food shop details for administrative approval.
+            Submit your food shop details and location for administrative approval.
           </p>
         </div>
 
@@ -140,7 +144,7 @@ export const ShopDashboard = () => {
               <input
                 type="text"
                 className="form-input"
-                placeholder="e.g. Campus Central Cafeteria"
+                placeholder="e.g. Bella Spice Kitchen"
                 value={shopName}
                 onChange={(e) => setShopName(e.target.value)}
                 required
@@ -159,13 +163,13 @@ export const ShopDashboard = () => {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Campus Location</label>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="e.g. Student Activity Center (SAC), Ground Floor"
-                value={campusLocation}
-                onChange={(e) => setCampusLocation(e.target.value)}
+              <LocationPicker
+                label="Shop Location & Optional GPS Point"
+                placeholder="e.g. 42 MG Road, Indiranagar, Bengaluru"
+                address={shopLocation.address}
+                latitude={shopLocation.latitude}
+                longitude={shopLocation.longitude}
+                onChange={setShopLocation}
                 required
               />
             </div>
@@ -233,10 +237,20 @@ export const ShopDashboard = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
         <div>
           <h1 style={{ fontSize: '1.8rem', marginBottom: '4px' }}>{shop.name}</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-              <MapPin size={15} color="#ff6433" /> {shop.campusLocation}
+              <MapPin size={15} color="#ff6433" /> {shop.location || shop.campusLocation}
             </span>
+            {shop.latitude && shop.longitude && (
+              <a
+                href={`https://www.google.com/maps?q=${shop.latitude},${shop.longitude}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ fontSize: '0.8rem', color: 'var(--brand-primary)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              >
+                <ExternalLink size={12} /> GPS Pin
+              </a>
+            )}
             <StatusBadge status={shop.approvalStatus} />
           </div>
         </div>

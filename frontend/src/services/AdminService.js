@@ -10,17 +10,30 @@ export class AdminService extends BaseService {
   }
 
   async getDashboardSummary() {
-    return await this.get('/dashboard-summary');
+    return await this.get('/summary');
   }
 
-  async getPendingShops() {
-    const rawData = await this.get('/shops/pending');
+  async getAllShops() {
+    const rawData = await this.get('/shops');
     if (!Array.isArray(rawData)) return [];
     return rawData.map((data) => new Shop(data));
   }
 
-  async reviewShop(shopId, approved, reason = '') {
-    return await this.post(`/shops/${shopId}/review`, { approved, reason });
+  async reviewShopStatus(shopId, status) {
+    const rawData = await this.patch(`/shops/${shopId}/status`, { status });
+    return new Shop(rawData);
+  }
+
+  async deactivateShop(shopId) {
+    return await this.post(`/shops/${shopId}/deactivate`, {});
+  }
+
+  async getDeliveryPartners() {
+    return await this.get('/delivery-partners');
+  }
+
+  async reviewDeliveryPartnerStatus(partnerId, status) {
+    return await this.patch(`/delivery-partners/${partnerId}/status`, { status });
   }
 
   async getAuditLogs() {
@@ -31,24 +44,40 @@ export class AdminService extends BaseService {
     return await this.get('/deletion-requests');
   }
 
-  async reviewDeletionRequest(requestId, status, note = '') {
-    return await this.post(`/deletion-requests/${requestId}/review`, { status, note });
+  async reviewDeletionRequest(requestId, confirm, note = '') {
+    return await this.post(`/deletion-requests/${requestId}/review`, { confirm, note });
   }
 
   async getDisputes() {
-    return await this.get('/disputes');
+    return await this.client.get('/disputes');
   }
 
-  async resolveDispute(disputeId, status, note = '') {
-    return await this.post(`/disputes/${disputeId}/resolve`, { status, note });
+  async resolveDispute(disputeId, resolve, note = '') {
+    return await this.client.post(`/disputes/${disputeId}/resolve`, { resolve, note });
   }
 
   async getRefunds() {
-    return await this.get('/refunds');
+    return await this.client.get('/payments/refunds');
   }
 
-  async processRefund(refundId, status) {
-    return await this.post(`/refunds/${refundId}/process`, { status });
+  async reviewRefund(refundId, approve, note = '') {
+    return await this.client.post(`/payments/refund/${refundId}/review`, { approve, note });
+  }
+
+  async getAdmins() {
+    return await this.get('/admins');
+  }
+
+  async reviewAdminStatus(adminId, status, adminKey = null) {
+    return await this.patch(`/admins/${adminId}/status`, { status, adminKey });
+  }
+
+  async getAdminRoleRequests() {
+    return await this.get('/admin-requests');
+  }
+
+  async reviewAdminRoleRequest(requestId, approve, note = '') {
+    return await this.post(`/admin-requests/${requestId}/review`, { approve, note });
   }
 }
 

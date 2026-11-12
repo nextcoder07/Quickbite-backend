@@ -9,17 +9,35 @@ export class Order extends BaseModel {
     super(data);
     this.shopId = data.shopId !== undefined ? Number(data.shopId) : null;
     this.shopName = data.shopName || '';
+    this.shopLocation = data.shopLocation || '';
+    this.shopLatitude = data.shopLatitude !== undefined && data.shopLatitude !== null ? Number(data.shopLatitude) : null;
+    this.shopLongitude = data.shopLongitude !== undefined && data.shopLongitude !== null ? Number(data.shopLongitude) : null;
+    this.orderNumber = data.orderNumber || '';
     this.buyerId = data.buyerId !== undefined ? Number(data.buyerId) : null;
+    this.buyerName = data.buyerName || '';
     this.status = data.status || 'PLACED'; // PLACED, ACCEPTED, PREPARING, READY, OUT_FOR_DELIVERY, DELIVERED, CANCELLED, REJECTED
     this.subtotal = Number(data.subtotal) || 0;
     this.deliveryFee = Number(data.deliveryFee) || 0;
     this.discountAmount = Number(data.discountAmount) || 0;
     this.totalAmount = Number(data.totalAmount) || 0;
     this.deliveryAddress = data.deliveryAddress || '';
-    this.notes = data.notes || '';
+    this.deliveryLatitude = data.deliveryLatitude !== undefined && data.deliveryLatitude !== null ? Number(data.deliveryLatitude) : null;
+    this.deliveryLongitude = data.deliveryLongitude !== undefined && data.deliveryLongitude !== null ? Number(data.deliveryLongitude) : null;
+    this.buyerNote = data.buyerNote || data.notes || '';
+    this.notes = this.buyerNote;
+    this.placedAt = data.placedAt || data.createdAt || null;
     this.items = Array.isArray(data.items) ? data.items : [];
     this.estimatedDeliveryMinutes = data.estimatedDeliveryMinutes || 25;
     this.hasFeedback = Boolean(data.hasFeedback);
+  }
+
+  hasDeliveryCoordinates() {
+    return Number.isFinite(this.deliveryLatitude) && Number.isFinite(this.deliveryLongitude);
+  }
+
+  getDeliveryMapUrl() {
+    if (!this.hasDeliveryCoordinates()) return null;
+    return `https://www.google.com/maps?q=${this.deliveryLatitude},${this.deliveryLongitude}`;
   }
 
   isTerminal() {
@@ -86,3 +104,4 @@ export class Order extends BaseModel {
     }
   }
 }
+

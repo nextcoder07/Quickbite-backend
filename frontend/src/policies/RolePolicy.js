@@ -16,7 +16,15 @@ export class BaseRolePolicy {
   }
 
   getDefaultRoute() {
-    return '/';
+    return '/login';
+  }
+
+  getHomeRoute(account) {
+    return this.getDefaultRoute(account);
+  }
+
+  canAccessRoute(pathname, account) {
+    return Boolean(pathname);
   }
 
   canBrowseMarketplace() {
@@ -57,6 +65,17 @@ export class BuyerPolicy extends BaseRolePolicy {
     return '/';
   }
 
+  canAccessRoute(pathname) {
+    return (
+      pathname === '/' ||
+      pathname === '/shops' ||
+      /^\/shop\/\d+/.test(pathname) ||
+      pathname === '/cart' ||
+      pathname === '/orders' ||
+      pathname === '/profile'
+    );
+  }
+
   canPlaceOrder() {
     return true;
   }
@@ -75,8 +94,21 @@ export class ShopOwnerPolicy extends BaseRolePolicy {
     return 'badge-warning';
   }
 
-  getDefaultRoute() {
-    return '/shop/dashboard';
+  getDefaultRoute(account) {
+    return account?.isVerifiedForPlatform() ? '/shop/dashboard' : '/shop/onboarding';
+  }
+
+  canAccessRoute(pathname, account) {
+    if (!account?.isVerifiedForPlatform()) {
+      return pathname === '/shop/onboarding';
+    }
+    return (
+      pathname === '/shop/dashboard' ||
+      pathname === '/shop/products' ||
+      pathname === '/shop/orders' ||
+      pathname === '/shop/settings' ||
+      pathname === '/shop/onboarding'
+    );
   }
 
   canManageShop() {
@@ -90,15 +122,27 @@ export class DeliveryPartnerPolicy extends BaseRolePolicy {
   }
 
   getDisplayName() {
-    return 'Delivery';
+    return 'Delivery Partner';
   }
 
   getBadgeColor() {
     return 'badge-info';
   }
 
-  getDefaultRoute() {
-    return '/delivery/dashboard';
+  getDefaultRoute(account) {
+    return account?.isVerifiedForPlatform() ? '/delivery/dashboard' : '/delivery/verification';
+  }
+
+  canAccessRoute(pathname, account) {
+    if (!account?.isVerifiedForPlatform()) {
+      return pathname === '/delivery/verification';
+    }
+    return (
+      pathname === '/delivery/dashboard' ||
+      pathname === '/delivery/history' ||
+      pathname === '/delivery/settings' ||
+      pathname === '/delivery/verification'
+    );
   }
 
   canAcceptDeliveries() {
@@ -119,8 +163,15 @@ export class AdminPolicy extends BaseRolePolicy {
     return 'badge-purple';
   }
 
-  getDefaultRoute() {
-    return '/admin/dashboard';
+  getDefaultRoute(account) {
+    return account?.isVerifiedForPlatform() ? '/admin/dashboard' : '/admin/verification';
+  }
+
+  canAccessRoute(pathname, account) {
+    if (!account?.isVerifiedForPlatform()) {
+      return pathname === '/admin/verification';
+    }
+    return pathname.startsWith('/admin');
   }
 
   canAccessAdmin() {
@@ -162,3 +213,4 @@ export class RolePolicyFactory {
     return policy;
   }
 }
+

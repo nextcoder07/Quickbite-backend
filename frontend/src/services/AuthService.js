@@ -40,6 +40,8 @@ export class AuthService extends BaseService {
   clearSession() {
     localStorage.removeItem(this.TOKEN_STORAGE_KEY);
     localStorage.removeItem(this.USER_STORAGE_KEY);
+    localStorage.removeItem('qb_cart');
+    localStorage.removeItem('qb_cart_shop');
     this.client.clearCache();
   }
 
@@ -54,14 +56,8 @@ export class AuthService extends BaseService {
     return account;
   }
 
-  async devQuickLogin(targetRoleOrEmail) {
-    let email = 'buyer@quickbite.campus';
-    if (targetRoleOrEmail === 'SHOP_OWNER') email = 'shop@quickbite.campus';
-    else if (targetRoleOrEmail === 'DELIVERY_PARTNER') email = 'delivery@quickbite.campus';
-    else if (targetRoleOrEmail === 'ADMIN') email = 'admin@quickbite.campus';
-    else if (targetRoleOrEmail && targetRoleOrEmail.includes('@')) email = targetRoleOrEmail.trim();
-
-    const rawData = await this.post('/dev-login', { email });
+  async loginWithPassword(email, password) {
+    const rawData = await this.post('/login', { email: String(email || '').trim(), password });
     const account = AccountFactory.create(rawData);
     this.storeSession(account);
     return account;
@@ -74,9 +70,18 @@ export class AuthService extends BaseService {
     return account;
   }
 
-  logout() {
-    this.clearSession();
+  async logout() {
+    try {
+      if (this.getStoredToken()) {
+        await this.post('/logout', {});
+      }
+    } catch {
+      // Best-effort server audit log; always clear client session
+    } finally {
+      this.clearSession();
+    }
   }
 }
 
 export const authService = new AuthService();
+

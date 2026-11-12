@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../api/apiClient';
+import { adminService } from '../../services/AdminService';
 import { StatusBadge } from '../../components/StatusBadge';
 import { RotateCcw, Check, X, ShieldCheck } from 'lucide-react';
 
 export const RefundManagement = () => {
-  const cachedRefunds = api.getCache('/payments/refunds');
-  const [refunds, setRefunds] = useState(() => cachedRefunds || []);
-  const [loading, setLoading] = useState(() => !cachedRefunds);
+  const [refunds, setRefunds] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const fetchRefunds = async () => {
     try {
-      const data = await api.get('/payments/refunds');
+      const data = await adminService.getRefunds();
       setRefunds(data);
     } catch (err) {
       console.error('Failed to load refunds:', err);
@@ -31,10 +30,7 @@ export const RefundManagement = () => {
     if (note === null) return;
 
     try {
-      await api.post(`/payments/refund/${refundId}/review`, {
-        approve,
-        note,
-      });
+      await adminService.reviewRefund(refundId, approve, note);
       fetchRefunds();
     } catch (err) {
       alert(err.message || 'Refund review failed');

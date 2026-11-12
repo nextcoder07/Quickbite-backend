@@ -14,9 +14,12 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:sa}
     password: ${SPRING_DATASOURCE_PASSWORD:}
     hikari:
-      connection-timeout: 30000
-      maximum-pool-size: 10
-      minimum-idle: 2
+      connection-timeout: 15000
+      maximum-pool-size: 5
+      minimum-idle: 1
+      idle-timeout: 120000
+      max-lifetime: 300000
+      keepalive-time: 60000
   jpa:
     open-in-view: false
     show-sql: false
@@ -40,6 +43,8 @@ springdoc:
     operations-sorter: method
 
 quickbite:
+  admin:
+    signup-key: ${ADMIN_SIGNUP_KEY:QuickBiteAdminKey@2026}
   firebase:
     enabled: ${FIREBASE_AUTH_ENABLED:false}
     config-path: ${FIREBASE_CONFIG_PATH:firebase-adminsdk.json}

@@ -25,9 +25,10 @@ public class DeliveryController {
     }
 
     @GetMapping("/available")
-    @Operation(summary = "Available deliveries", description = "List unassigned orders ready for delivery")
-    public ResponseEntity<List<DeliveryResponse>> getAvailableDeliveries() {
-        return ResponseEntity.ok(deliveryService.getAvailableDeliveries());
+    @Operation(summary = "Available deliveries", description = "List unassigned orders ready for verified delivery partners")
+    public ResponseEntity<List<DeliveryResponse>> getAvailableDeliveries(
+            @AuthenticationPrincipal CurrentAccountPrincipal principal) {
+        return ResponseEntity.ok(deliveryService.getAvailableDeliveries(principal));
     }
 
     @GetMapping("/my")

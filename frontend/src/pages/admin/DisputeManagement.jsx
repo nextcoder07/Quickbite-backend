@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../api/apiClient';
+import { adminService } from '../../services/AdminService';
 import { StatusBadge } from '../../components/StatusBadge';
 import { AlertCircle, Check, X, MessageSquare } from 'lucide-react';
 
 export const DisputeManagement = () => {
-  const cachedDisputes = api.getCache('/disputes');
-  const [disputes, setDisputes] = useState(() => cachedDisputes || []);
-  const [loading, setLoading] = useState(() => !cachedDisputes);
+  const [disputes, setDisputes] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const fetchDisputes = async () => {
     try {
-      const data = await api.get('/disputes');
+      const data = await adminService.getDisputes();
       setDisputes(data);
     } catch (err) {
       console.error('Failed to load disputes:', err);
@@ -31,10 +30,7 @@ export const DisputeManagement = () => {
     if (note === null) return;
 
     try {
-      await api.post(`/disputes/${disputeId}/resolve`, {
-        resolve,
-        note,
-      });
+      await adminService.resolveDispute(disputeId, resolve, note);
       fetchDisputes();
     } catch (err) {
       alert(err.message || 'Action failed');

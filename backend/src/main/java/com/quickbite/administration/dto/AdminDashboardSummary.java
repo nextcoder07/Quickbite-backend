@@ -9,6 +9,8 @@ public record AdminDashboardSummary(
         long totalOrders,
         BigDecimal totalVolume,
         long pendingShopsCount,
+        long pendingDeliveryPartnersCount,
         long pendingDeletionCount,
-        long openDisputesCount
+        long openDisputesCount,
+        long pendingAdminRequestsCount
 ) {}

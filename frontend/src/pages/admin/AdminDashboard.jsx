@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../api/apiClient';
+import { adminService } from '../../services/AdminService';
 import { Link } from 'react-router-dom';
-import { 
-  Users, 
-  Store, 
-  ShoppingBag, 
-  TrendingUp, 
-  AlertCircle, 
-  ClipboardList, 
-  Shield, 
+import {
+  Users,
+  Store,
+  TrendingUp,
+  AlertCircle,
+  ClipboardList,
   ArrowRight,
-  Bike
+  Bike,
+  Shield,
 } from 'lucide-react';
 
 export const AdminDashboard = () => {
@@ -22,7 +22,7 @@ export const AdminDashboard = () => {
   useEffect(() => {
     const fetchSummary = async () => {
       try {
-        const data = await api.get('/admin/summary');
+        const data = await adminService.getDashboardSummary();
         setSummary(data);
       } catch (err) {
         setError(err.message || 'Failed to load admin summary');
@@ -41,9 +41,9 @@ export const AdminDashboard = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
       <div>
-        <h1 style={{ fontSize: '1.8rem', marginBottom: '4px' }}>Campus Operational Dashboard</h1>
+        <h1 style={{ fontSize: '1.8rem', marginBottom: '4px' }}>Platform Operational Dashboard</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          Overview of campus marketplace activity, moderation queues, and security monitoring
+          Overview of marketplace activity, partner & shop verifications, removals, and disputes
         </p>
       </div>
 
@@ -77,7 +77,7 @@ export const AdminDashboard = () => {
 
         <div className="glass-panel" style={{ padding: '22px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>CAMPUS SHOPS</span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>ACTIVE SHOPS</span>
             <div style={{ padding: '8px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24' }}>
               <Store size={18} />
             </div>
@@ -102,10 +102,22 @@ export const AdminDashboard = () => {
       <div>
         <h2 style={{ fontSize: '1.3rem', marginBottom: '14px' }}>Pending Moderation Queues</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+          <Link to="/admin/admins" className="glass-panel" style={{ padding: '24px', textDecoration: 'none', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#c084fc', fontSize: '0.85rem', fontWeight: 700, marginBottom: '6px' }}>
+                <Shield size={16} /> ADMIN REQUESTS
+              </div>
+              <div style={{ fontSize: '1.6rem', fontWeight: 800 }}>
+                {summary?.pendingAdminRequestsCount || 0} Pending
+              </div>
+            </div>
+            <ArrowRight size={20} color="var(--text-muted)" />
+          </Link>
+
           <Link to="/admin/shops" className="glass-panel" style={{ padding: '24px', textDecoration: 'none', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fbbf24', fontSize: '0.85rem', fontWeight: 700, marginBottom: '6px' }}>
-                <Store size={16} /> SHOP APPLICATIONS
+                <Store size={16} /> SHOP VERIFICATIONS
               </div>
               <div style={{ fontSize: '1.6rem', fontWeight: 800 }}>
                 {summary?.pendingShopsCount || 0} Pending
@@ -114,10 +126,22 @@ export const AdminDashboard = () => {
             <ArrowRight size={20} color="var(--text-muted)" />
           </Link>
 
+          <Link to="/admin/delivery-partners" className="glass-panel" style={{ padding: '24px', textDecoration: 'none', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#38bdf8', fontSize: '0.85rem', fontWeight: 700, marginBottom: '6px' }}>
+                <Bike size={16} /> DELIVERY VERIFICATIONS
+              </div>
+              <div style={{ fontSize: '1.6rem', fontWeight: 800 }}>
+                {summary?.pendingDeliveryPartnersCount || 0} Pending
+              </div>
+            </div>
+            <ArrowRight size={20} color="var(--text-muted)" />
+          </Link>
+
           <Link to="/admin/deletions" className="glass-panel" style={{ padding: '24px', textDecoration: 'none', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f87171', fontSize: '0.85rem', fontWeight: 700, marginBottom: '6px' }}>
-                <ClipboardList size={16} /> DELETION REQUESTS
+                <ClipboardList size={16} /> REMOVAL CONFIRMATIONS
               </div>
               <div style={{ fontSize: '1.6rem', fontWeight: 800 }}>
                 {summary?.pendingDeletionCount || 0} Pending

@@ -1,15 +1,23 @@
 import React, { useState } from 'react';
 import { useCart } from '../../context/CartContext';
+import { useAuth } from '../../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../api/apiClient';
 import { orderService } from '../../services/OrderService';
-import { Trash2, Plus, Minus, ArrowLeft, ShoppingBag, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { LocationPicker } from '../../components/LocationPicker';
+import { Trash2, Plus, Minus, ArrowLeft, ShoppingBag, ShieldCheck } from 'lucide-react';
 import { RazorpayModal } from '../../components/RazorpayModal';
 
 export const CartCheckout = () => {
   const { cart, shop, subtotal, deliveryFee, totalAmount, updateQuantity, removeFromCart, clearCart, cartModel } = useCart();
+  const { account } = useAuth();
   const navigate = useNavigate();
 
+  const [deliveryLocation, setDeliveryLocation] = useState({
+    address: account?.defaultAddress || '',
+    latitude: account?.defaultLatitude ?? null,
+    longitude: account?.defaultLongitude ?? null,
+  });
   const [buyerNote, setBuyerNote] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -24,32 +32,35 @@ export const CartCheckout = () => {
         <ShoppingBag size={56} color="var(--text-faint)" style={{ margin: '0 auto 16px' }} />
         <h2 style={{ marginBottom: '8px' }}>Your Cart is Empty</h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '24px' }}>
-          Explore delicious meals and drinks from campus shops.
+          Explore fresh meals and drinks from shops across all locations.
         </p>
-        <Link to="/" className="btn btn-primary">Browse Campus Shops</Link>
+        <Link to="/" className="btn btn-primary">Browse Shops</Link>
       </div>
     );
   }
 
   const handleInitiateCheckout = async () => {
+    if (!deliveryLocation.address?.trim()) {
+      setError('Please enter your delivery address or pin your GPS location before placing the order.');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
     try {
-      // 1. Backend Checkout API via OOP OrderService
-      const checkoutPayload = {
-        shopId: shop.id,
-        items: cart.map((item) => ({
-          productId: item.product.id,
-          quantity: item.quantity,
-        })),
-        buyerNote: buyerNote ? buyerNote.trim() : null,
-      };
+      // 1. Backend Checkout API via Cart aggregate + OOP OrderService
+      const checkoutPayload = cartModel.toCheckoutPayload(
+        deliveryLocation.address,
+        buyerNote,
+        deliveryLocation.latitude,
+        deliveryLocation.longitude
+      );
 
       const order = await orderService.checkout(checkoutPayload);
 
       // 2. Initialize Payment Order on Server
-      const paymentOrder = await api.post('/payments/create-order', {
+      await api.post('/payments/create-order', {
         orderId: order.id,
       });
 
@@ -103,7 +114,7 @@ export const CartCheckout = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <div>
                 <h3 style={{ fontSize: '1.15rem' }}>Items from {shop.name}</h3>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{shop.campusLocation}</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{shop.location || shop.campusLocation}</span>
               </div>
               <button
                 onClick={clearCart}
@@ -184,16 +195,29 @@ export const CartCheckout = () => {
             </div>
           </div>
 
-          {/* Delivery Note */}
-          <div className="glass-panel" style={{ padding: '20px' }}>
-            <h4 style={{ fontSize: '0.95rem', marginBottom: '8px' }}>Delivery / Special Instructions</h4>
-            <textarea
-              className="form-textarea"
-              rows={3}
-              placeholder="e.g. Leave at SAC Room 204 or extra green chutney..."
-              value={buyerNote}
-              onChange={(e) => setBuyerNote(e.target.value)}
+          {/* Delivery Destination Location & Note */}
+          <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <LocationPicker
+              label="Delivery Address & Location Point"
+              placeholder="House/Flat No, Street, Area, Landmark, City..."
+              address={deliveryLocation.address}
+              latitude={deliveryLocation.latitude}
+              longitude={deliveryLocation.longitude}
+              onChange={setDeliveryLocation}
+              required
+              hint="Deliveries work anywhere — type an address or click Use GPS Point."
             />
+
+            <div>
+              <h4 style={{ fontSize: '0.95rem', marginBottom: '8px' }}>Delivery / Kitchen Instructions</h4>
+              <textarea
+                className="form-textarea"
+                rows={3}
+                placeholder="e.g. Gate code, floor number, ring bell twice, extra green chutney..."
+                value={buyerNote}
+                onChange={(e) => setBuyerNote(e.target.value)}
+              />
+            </div>
           </div>
         </div>
 
@@ -209,9 +233,9 @@ export const CartCheckout = () => {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)' }}>
-                <span>Campus Delivery Fee</span>
+                <span>Delivery Fee</span>
                 {deliveryFee === 0 ? (
-                  <span style={{ color: 'var(--success)', fontWeight: 700 }}>FREE (Orders &gt; ₹300)</span>
+                  <span style={{ color: 'var(--success)', fontWeight: 700 }}>FREE (Orders ≥ ₹300)</span>
                 ) : (
                   <span style={{ color: '#fff' }}>₹{deliveryFee.toFixed(2)}</span>
                 )}

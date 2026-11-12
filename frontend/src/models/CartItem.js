@@ -67,3 +67,4 @@ export class CartItem {
     return new CartItem(new Product(json.product), json.quantity);
   }
 }
+

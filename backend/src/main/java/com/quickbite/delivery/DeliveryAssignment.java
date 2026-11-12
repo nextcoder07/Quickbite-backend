@@ -43,6 +43,10 @@ public class DeliveryAssignment {
     @Column(name = "failure_reason", columnDefinition = "TEXT")
     private String failureReason;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
+
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
@@ -100,6 +104,10 @@ public class DeliveryAssignment {
         return updatedAt;
     }
 
+    public Long getVersion() {
+        return version;
+    }
+
     public void assignTo(DeliveryPartner partner) {
         if (this.status != DeliveryStatus.UNASSIGNED) {
             throw new InvalidStateTransitionException("Only unassigned delivery can be assigned");
@@ -147,6 +155,15 @@ public class DeliveryAssignment {
         }
         this.status = DeliveryStatus.FAILED;
         this.failureReason = reason != null ? reason.trim() : "Unspecified delivery issue";
+        this.updatedAt = Instant.now();
+    }
+
+    public void cancelByOrder(String reason) {
+        if (this.status == DeliveryStatus.DELIVERED || this.status == DeliveryStatus.CANCELLED) {
+            return;
+        }
+        this.status = DeliveryStatus.CANCELLED;
+        this.failureReason = reason != null ? reason.trim() : "Order cancelled";
         this.updatedAt = Instant.now();
     }
 

@@ -53,6 +53,15 @@ public class CustomerOrder {
     @Column(name = "buyer_note", columnDefinition = "TEXT")
     private String buyerNote;
 
+    @Column(name = "delivery_address", length = 500)
+    private String deliveryAddress;
+
+    @Column(name = "delivery_latitude")
+    private Double deliveryLatitude;
+
+    @Column(name = "delivery_longitude")
+    private Double deliveryLongitude;
+
     @Column(name = "cancellation_reason", columnDefinition = "TEXT")
     private String cancellationReason;
 
@@ -66,6 +75,12 @@ public class CustomerOrder {
 
     public CustomerOrder(String orderNumber, User buyer, Shop shop, BigDecimal subtotal,
                          BigDecimal deliveryFee, BigDecimal discountAmount, String buyerNote) {
+        this(orderNumber, buyer, shop, subtotal, deliveryFee, discountAmount, buyerNote, null, null, null);
+    }
+
+    public CustomerOrder(String orderNumber, User buyer, Shop shop, BigDecimal subtotal,
+                         BigDecimal deliveryFee, BigDecimal discountAmount, String buyerNote,
+                         String deliveryAddress, Double deliveryLatitude, Double deliveryLongitude) {
         this.orderNumber = Objects.requireNonNull(orderNumber, "orderNumber must not be null");
         this.buyer = Objects.requireNonNull(buyer, "buyer must not be null");
         this.shop = Objects.requireNonNull(shop, "shop must not be null");
@@ -74,6 +89,9 @@ public class CustomerOrder {
         this.discountAmount = discountAmount != null ? discountAmount : BigDecimal.ZERO;
         this.totalAmount = this.subtotal.add(this.deliveryFee).subtract(this.discountAmount);
         this.buyerNote = buyerNote;
+        this.deliveryAddress = deliveryAddress != null && !deliveryAddress.isBlank() ? deliveryAddress.trim() : null;
+        this.deliveryLatitude = deliveryLatitude;
+        this.deliveryLongitude = deliveryLongitude;
         this.status = OrderStatus.PLACED;
         this.placedAt = Instant.now();
         this.updatedAt = Instant.now();
@@ -138,6 +156,18 @@ public class CustomerOrder {
 
     public String getBuyerNote() {
         return buyerNote;
+    }
+
+    public String getDeliveryAddress() {
+        return deliveryAddress;
+    }
+
+    public Double getDeliveryLatitude() {
+        return deliveryLatitude;
+    }
+
+    public Double getDeliveryLongitude() {
+        return deliveryLongitude;
     }
 
     public String getCancellationReason() {

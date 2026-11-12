@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../api/apiClient';
 import { StatusBadge } from '../../components/StatusBadge';
-import { Sliders, AlertTriangle, CheckCircle2, Clock, Upload } from 'lucide-react';
+import { LocationPicker } from '../../components/LocationPicker';
+import { AlertTriangle, CheckCircle2, Upload } from 'lucide-react';
 
 export const ShopSettings = () => {
   const cachedShop = api.getCache('/marketplace/owner/shop');
   const [shop, setShop] = useState(() => cachedShop || null);
   const [name, setName] = useState(() => cachedShop?.name || '');
   const [description, setDescription] = useState(() => cachedShop?.description || '');
-  const [campusLocation, setCampusLocation] = useState(() => cachedShop?.campusLocation || '');
+  const [shopLocation, setShopLocation] = useState(() => ({
+    address: cachedShop?.location || cachedShop?.campusLocation || '',
+    latitude: cachedShop?.latitude ?? null,
+    longitude: cachedShop?.longitude ?? null,
+  }));
   const [imagePath, setImagePath] = useState(() => cachedShop?.imagePath || '');
   const [loading, setLoading] = useState(() => !cachedShop);
   const [saving, setSaving] = useState(false);
@@ -45,7 +50,11 @@ export const ShopSettings = () => {
       setShop(data);
       setName(data.name);
       setDescription(data.description || '');
-      setCampusLocation(data.campusLocation);
+      setShopLocation({
+        address: data.location || data.campusLocation || '',
+        latitude: data.latitude ?? null,
+        longitude: data.longitude ?? null,
+      });
       setImagePath(data.imagePath || '');
 
       const requests = await api.get('/account/deletion-request');
@@ -71,7 +80,9 @@ export const ShopSettings = () => {
       const updated = await api.put('/marketplace/owner/shop', {
         name: name.trim(),
         description: description.trim(),
-        campusLocation: campusLocation.trim(),
+        location: shopLocation.address.trim(),
+        latitude: shopLocation.latitude,
+        longitude: shopLocation.longitude,
         imagePath: imagePath ? imagePath.trim() : null,
       });
       setShop(updated);
@@ -152,12 +163,13 @@ export const ShopSettings = () => {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Campus Location</label>
-            <input
-              type="text"
-              className="form-input"
-              value={campusLocation}
-              onChange={(e) => setCampusLocation(e.target.value)}
+            <LocationPicker
+              label="Shop Location & Optional GPS Point"
+              placeholder="Street address, neighborhood, city..."
+              address={shopLocation.address}
+              latitude={shopLocation.latitude}
+              longitude={shopLocation.longitude}
+              onChange={setShopLocation}
               required
             />
           </div>
@@ -210,7 +222,7 @@ export const ShopSettings = () => {
           <h3 style={{ fontSize: '1.15rem' }}>Request Shop Owner Account Deletion</h3>
         </div>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: '1.5', marginBottom: '16px' }}>
-          Under college policy, Shop Owner deletion requires campus admin confirmation to ensure fulfilled orders and settled accounts. Historical records will be retained.
+          Under platform policy, Shop Owner & shop removal requires Administrator confirmation to ensure active orders and settled accounts are closed safely.
         </p>
 
         {deletionRequests.length > 0 ? (

@@ -27,3 +27,4 @@ export class BaseModel {
     return { ...this };
   }
 }
+

@@ -1,16 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../api/apiClient';
-import { User, Mail, Phone, Shield, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Shield } from 'lucide-react';
 import { StatusBadge } from '../../components/StatusBadge';
+import { LocationPicker } from '../../components/LocationPicker';
+import { FoodInterestSelector } from '../../components/FoodInterestSelector';
 
 export const Profile = () => {
-  const { user, updateProfile, logout } = useAuth();
+  const { user, account, updateProfile, refreshAccount, logout } = useAuth();
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [phone, setPhone] = useState(user?.phone || '');
+  const [foodInterests, setFoodInterests] = useState(account?.foodInterests || user?.foodInterests || '');
+  const [defaultLocation, setDefaultLocation] = useState({
+    address: account?.defaultAddress || '',
+    latitude: account?.defaultLatitude ?? null,
+    longitude: account?.defaultLongitude ?? null,
+  });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+  const [adminRequests, setAdminRequests] = useState([]);
+  const [adminReason, setAdminReason] = useState('');
+  const [requestingAdmin, setRequestingAdmin] = useState(false);
+
+  useEffect(() => {
+    api.get('/account/admin-request')
+      .then((data) => setAdminRequests(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
 
   const handleUpdate = async (e) => {
     e.preventDefault();
@@ -22,9 +39,20 @@ export const Profile = () => {
       const res = await api.patch('/account/profile', {
         displayName,
         phone,
+        defaultAddress: defaultLocation.address ? defaultLocation.address.trim() : null,
+        defaultLatitude: defaultLocation.latitude,
+        defaultLongitude: defaultLocation.longitude,
+        foodInterests: foodInterests.trim(),
       });
-      updateProfile({ displayName: res.displayName, phone: res.phone });
-      setSuccess('Profile updated successfully');
+      updateProfile({
+        displayName: res.displayName,
+        phone: res.phone,
+        defaultAddress: res.defaultAddress,
+        defaultLatitude: res.defaultLatitude,
+        defaultLongitude: res.defaultLongitude,
+        foodInterests: res.foodInterests,
+      });
+      setSuccess('Profile, delivery location, and food interests updated successfully');
     } catch (err) {
       setError(err.message || 'Failed to update profile');
     } finally {
@@ -47,12 +75,32 @@ export const Profile = () => {
     }
   };
 
+  const handleRequestAdminRole = async (e) => {
+    e.preventDefault();
+    setRequestingAdmin(true);
+    setError('');
+    setSuccess('');
+    try {
+      const created = await api.post('/account/admin-request', { reason: adminReason.trim() });
+      setAdminRequests((prev) => [created, ...prev]);
+      setAdminReason('');
+      await refreshAccount();
+      setSuccess('Admin permission request sent. An active Admin can approve your request.');
+    } catch (err) {
+      setError(err.message || 'Failed to submit Admin role request');
+    } finally {
+      setRequestingAdmin(false);
+    }
+  };
+
+  const hasPendingAdminRequest = adminRequests.some((r) => r.status === 'PENDING');
+
   return (
     <div style={{ maxWidth: '640px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div>
         <h1 style={{ fontSize: '1.8rem', marginBottom: '4px' }}>Account Settings</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          Manage your personal details and campus account preferences
+          Manage your personal details, saved delivery location, and account preferences
         </p>
       </div>
 
@@ -135,6 +183,27 @@ export const Profile = () => {
           </div>
 
           <div className="form-group">
+            <LocationPicker
+              label="Default Delivery Location & GPS Point"
+              placeholder="House/Flat, Street, Area, Landmark, City..."
+              address={defaultLocation.address}
+              latitude={defaultLocation.latitude}
+              longitude={defaultLocation.longitude}
+              onChange={setDefaultLocation}
+              hint="Pre-filled automatically during checkout; you can still change it per order."
+            />
+          </div>
+
+          <div className="form-group">
+            <FoodInterestSelector
+              label="Food Interests & Preferred Dishes"
+              value={foodInterests}
+              onChange={setFoodInterests}
+              hint="Used alongside your past orders to rank dishes on 'For You • Top Items'. Leave blank to receive global cold-start top-rated picks."
+            />
+          </div>
+
+          <div className="form-group">
             <label className="form-label">Account Identity Email (Non-editable)</label>
             <input
               type="email"
@@ -154,6 +223,63 @@ export const Profile = () => {
             {loading ? 'Saving...' : 'Save Changes'}
           </button>
         </form>
+      </div>
+
+      {/* Request Admin Permission Card */}
+      <div className="glass-panel" style={{
+        padding: '24px 28px',
+        border: '1px solid rgba(168, 85, 247, 0.25)',
+        background: 'rgba(168, 85, 247, 0.05)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#c084fc', marginBottom: '8px' }}>
+          <Shield size={20} />
+          <h3 style={{ fontSize: '1.1rem' }}>Request Admin Permission</h3>
+        </div>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: '1.5', marginBottom: '14px' }}>
+          Ask existing Platform Admins for permission to become an Admin on QuickBite.
+        </p>
+
+        {hasPendingAdminRequest ? (
+          <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.12)', color: '#fbbf24', fontSize: '0.85rem' }}>
+            Your Admin permission request is currently pending review.
+          </div>
+        ) : (
+          <form onSubmit={handleRequestAdminRole} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              className="form-input"
+              style={{ flex: '1 1 260px' }}
+              placeholder="Reason or role on team (optional)..."
+              value={adminReason}
+              onChange={(e) => setAdminReason(e.target.value)}
+            />
+            <button type="submit" className="btn btn-secondary" disabled={requestingAdmin}>
+              {requestingAdmin ? 'Submitting...' : 'Ask Admin Permission'}
+            </button>
+          </form>
+        )}
+
+        {adminRequests.length > 0 && (
+          <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {adminRequests.map((req, idx) => (
+              <div
+                key={req.id || idx}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  background: 'rgba(15, 23, 42, 0.45)',
+                  fontSize: '0.82rem',
+                }}
+              >
+                <span>{req.reason || 'Admin permission request'}</span>
+                <StatusBadge status={req.status} />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Account Deactivation Card */}

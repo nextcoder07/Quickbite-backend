@@ -210,7 +210,11 @@ public class PaymentService {
         if (principal == null || principal.getIdentityId() == null) {
             throw new ForbiddenException("Authentication required");
         }
-        return adminRepository.findByIdentityId(principal.getIdentityId())
+        Admin admin = adminRepository.findByIdentityId(principal.getIdentityId())
                 .orElseThrow(() -> new ForbiddenException("Only admins can perform refund review"));
+        if (!admin.canOperateOnPlatform()) {
+            throw new ForbiddenException("Admin account is pending approval or suspended");
+        }
+        return admin;
     }
 }

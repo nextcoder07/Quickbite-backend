@@ -20,20 +20,45 @@ import java.util.Map;
 public class MarketplaceController {
 
     private final MarketplaceService marketplaceService;
+    private final RecommendationService recommendationService;
 
-    public MarketplaceController(MarketplaceService marketplaceService) {
+    public MarketplaceController(
+            MarketplaceService marketplaceService,
+            RecommendationService recommendationService) {
         this.marketplaceService = marketplaceService;
+        this.recommendationService = recommendationService;
     }
 
     // --- Public / Buyer Endpoints ---
 
     @GetMapping("/shops")
-    @Operation(summary = "Browse campus shops", description = "Retrieves active approved shops for buyers")
-    public ResponseEntity<List<ShopResponse>> getShops(@RequestParam(name = "includeClosed", defaultValue = "false") boolean includeClosed) {
-        List<ShopResponse> shops = includeClosed
-                ? marketplaceService.getAllApprovedShops()
-                : marketplaceService.getAvailableShops();
+    @Operation(summary = "Browse shops from any location", description = "Retrieves all active approved shops upfront, with optional search by product name, shop name, or location")
+    public ResponseEntity<List<ShopResponse>> getShops(
+            @RequestParam(name = "includeClosed", defaultValue = "true") boolean includeClosed,
+            @RequestParam(name = "q", required = false) String query,
+            @RequestParam(name = "location", required = false) String location) {
+        boolean hasFilters = (query != null && !query.isBlank()) || (location != null && !location.isBlank());
+        List<ShopResponse> shops = hasFilters
+                ? marketplaceService.searchShops(query, location, includeClosed)
+                : (includeClosed ? marketplaceService.getAllApprovedShops() : marketplaceService.getAvailableShops());
         return ResponseEntity.ok(shops);
+    }
+
+    @GetMapping("/products/recommended")
+    @Operation(summary = "Recommended food items for buyer", description = "Ranks food items by top ratings, profile interests & past buys, or applies cold-start algorithm for fresh buyers")
+    public ResponseEntity<RecommendationFeedResponse> getRecommendedProducts(
+            @AuthenticationPrincipal CurrentAccountPrincipal principal,
+            @RequestParam(name = "q", required = false) String query,
+            @RequestParam(name = "location", required = false) String location) {
+        return ResponseEntity.ok(recommendationService.getRecommendedProducts(principal, query, location));
+    }
+
+    @GetMapping("/products/search")
+    @Operation(summary = "Search products across all shops", description = "Finds available menu items matching product name, shop name, or location")
+    public ResponseEntity<List<ProductSearchResponse>> searchProducts(
+            @RequestParam(name = "q", required = false) String query,
+            @RequestParam(name = "location", required = false) String location) {
+        return ResponseEntity.ok(marketplaceService.searchProducts(query, location));
     }
 
     @GetMapping("/shops/{shopId}")

@@ -40,3 +40,4 @@ export class Product extends BaseModel {
     return new Product({ ...this.toJSON(), ...overrides });
   }
 }
+

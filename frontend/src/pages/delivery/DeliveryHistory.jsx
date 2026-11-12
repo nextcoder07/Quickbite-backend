@@ -64,7 +64,7 @@ export const DeliveryHistory = () => {
               <tr style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                 <th style={{ padding: '14px 20px' }}>ORDER</th>
                 <th style={{ padding: '14px 20px' }}>SHOP & LOCATION</th>
-                <th style={{ padding: '14px 20px' }}>STUDENT</th>
+                <th style={{ padding: '14px 20px' }}>CUSTOMER & DROP ADDRESS</th>
                 <th style={{ padding: '14px 20px' }}>STATUS</th>
                 <th style={{ padding: '14px 20px', textAlign: 'right' }}>DATE</th>
               </tr>
@@ -77,7 +77,12 @@ export const DeliveryHistory = () => {
                     <div style={{ fontWeight: 600 }}>{d.shopName}</div>
                     <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{d.shopLocation}</div>
                   </td>
-                  <td style={{ padding: '14px 20px' }}>{d.buyerName}</td>
+                  <td style={{ padding: '14px 20px' }}>
+                    <div style={{ fontWeight: 600 }}>{d.buyerName}</div>
+                    {d.deliveryAddress && (
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{d.deliveryAddress}</div>
+                    )}
+                  </td>
                   <td style={{ padding: '14px 20px' }}>
                     <StatusBadge status={d.status} />
                   </td>

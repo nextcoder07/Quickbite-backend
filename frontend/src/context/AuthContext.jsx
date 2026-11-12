@@ -39,24 +39,27 @@ export const AuthProvider = ({ children }) => {
     const stored = authService.storeSession(accountData);
     setAccount(stored);
     setToken(stored.token);
+    return stored;
   };
 
-  const logout = () => {
-    authService.logout();
+  const loginWithPassword = async (email, password) => {
+    const loggedInAccount = await authService.loginWithPassword(email, password);
+    setAccount(loggedInAccount);
+    setToken(loggedInAccount.token);
+    return loggedInAccount;
+  };
+
+  const refreshAccount = async () => {
+    const freshAccount = await authService.getCurrentUser();
+    setAccount(freshAccount);
+    setToken(freshAccount.token || authService.getStoredToken());
+    return freshAccount;
+  };
+
+  const logout = async () => {
+    await authService.logout();
     setAccount(null);
     setToken(null);
-  };
-
-  const devQuickLogin = async (targetRoleOrEmail) => {
-    try {
-      const loggedInAccount = await authService.devQuickLogin(targetRoleOrEmail);
-      setAccount(loggedInAccount);
-      setToken(loggedInAccount.token);
-      return loggedInAccount;
-    } catch (err) {
-      console.error('Dev login failed:', err);
-      throw err;
-    }
   };
 
   const updateProfile = (updatedFields) => {
@@ -81,8 +84,9 @@ export const AuthProvider = ({ children }) => {
         isAuthenticated: !!account && !!token,
         loading,
         login,
+        loginWithPassword,
+        refreshAccount,
         logout,
-        devQuickLogin,
         updateProfile,
       }}
     >

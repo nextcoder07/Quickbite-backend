@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { api } from '../../api/apiClient';
 import { orderService } from '../../services/OrderService';
 import { StatusBadge } from '../../components/StatusBadge';
-import { 
-  Clock, 
-  Store, 
-  MapPin, 
-  RotateCcw, 
-  Star, 
-  AlertCircle, 
-  CheckCircle2, 
+import {
+  Clock,
+  Store,
+  MapPin,
+  Star,
+  AlertCircle,
   X,
   XCircle,
-  MessageSquare
+  ExternalLink,
 } from 'lucide-react';
 
 export const OrderHistory = () => {
@@ -85,7 +84,7 @@ export const OrderHistory = () => {
     setDisputeSubmitting(true);
     try {
       await orderService.raiseDispute(disputeOrder.id, disputeCategory, disputeDescription);
-      alert('Dispute submitted for campus administrator moderation.');
+      alert('Dispute submitted for platform administrator review.');
       setDisputeOrder(null);
       setDisputeDescription('');
       fetchOrders();
@@ -101,7 +100,7 @@ export const OrderHistory = () => {
       <div>
         <h1 style={{ fontSize: '1.8rem', marginBottom: '4px' }}>Order Tracking & History</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          Real-time status updates from campus kitchens and delivery partners
+          Real-time status updates from kitchens and delivery partners across your orders
         </p>
       </div>
 
@@ -112,7 +111,7 @@ export const OrderHistory = () => {
           <Clock size={48} color="var(--text-faint)" style={{ margin: '0 auto 16px' }} />
           <h3>No Orders Placed Yet</h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '6px' }}>
-            Browse shops to place your first campus food order.
+            Browse shops to place your first food order.
           </p>
         </div>
       ) : (
@@ -177,6 +176,25 @@ export const OrderHistory = () => {
                     <span>₹{Number(order.deliveryFee).toFixed(2)}</span>
                   </div>
                 </div>
+
+                {order.deliveryAddress && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', padding: '10px 14px', borderRadius: '8px', background: 'rgba(15, 23, 42, 0.45)', border: '1px solid var(--border-subtle)', fontSize: '0.83rem', marginBottom: '14px' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)' }}>
+                      <MapPin size={14} color="#ff6433" />
+                      <span><strong style={{ color: '#fff' }}>Deliver to:</strong> {order.deliveryAddress}</span>
+                    </span>
+                    {order.hasDeliveryCoordinates?.() && (
+                      <a
+                        href={order.getDeliveryMapUrl()}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: 'var(--brand-primary)', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                      >
+                        <ExternalLink size={12} /> View Pin
+                      </a>
+                    )}
+                  </div>
+                )}
 
                 {/* Action buttons */}
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>

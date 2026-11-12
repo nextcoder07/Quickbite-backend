@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../api/apiClient';
+import { adminService } from '../../services/AdminService';
 import { StatusBadge } from '../../components/StatusBadge';
 import { ClipboardList, Check, X, AlertTriangle } from 'lucide-react';
 
 export const DeletionRequests = () => {
-  const cachedRequests = api.getCache('/admin/deletion-requests');
-  const [requests, setRequests] = useState(() => cachedRequests || []);
-  const [loading, setLoading] = useState(() => !cachedRequests);
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const fetchRequests = async () => {
     try {
-      const data = await api.get('/admin/deletion-requests');
+      const data = await adminService.getDeletionRequests();
       setRequests(data);
     } catch (err) {
       console.error('Failed to load deletion requests:', err);
@@ -31,10 +30,7 @@ export const DeletionRequests = () => {
     if (note === null) return;
 
     try {
-      await api.post(`/admin/deletion-requests/${requestId}/review`, {
-        confirm,
-        note,
-      });
+      await adminService.reviewDeletionRequest(requestId, confirm, note);
       fetchRequests();
     } catch (err) {
       alert(err.message || 'Review action failed');
@@ -44,9 +40,9 @@ export const DeletionRequests = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <div>
-        <h1 style={{ fontSize: '1.8rem', marginBottom: '4px' }}>Account Deletion Requests</h1>
+        <h1 style={{ fontSize: '1.8rem', marginBottom: '4px' }}>Platform Removal Confirmations</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          Review account closure requests from Shop Owners and Delivery Partners
+          Confirm or decline Shop Owner and Delivery Partner requests to remove their presence from QuickBite
         </p>
       </div>
 
@@ -83,7 +79,7 @@ export const DeletionRequests = () => {
                 {req.status === 'PENDING' && (
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button onClick={() => handleReview(req.id, true)} className="btn btn-danger btn-sm">
-                      <Check size={14} /> Confirm Deletion
+                      <Check size={14} /> Confirm Platform Removal
                     </button>
                     <button onClick={() => handleReview(req.id, false)} className="btn btn-secondary btn-sm">
                       <X size={14} /> Decline Request

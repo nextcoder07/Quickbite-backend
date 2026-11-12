@@ -2,6 +2,7 @@ package com.quickbite.security;
 
 import com.quickbite.common.enums.AccountStatus;
 import com.quickbite.common.enums.AccountTypeSnapshot;
+import com.quickbite.common.enums.VerificationStatus;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -18,15 +19,23 @@ public class CurrentAccountPrincipal implements UserDetails {
     private final AccountTypeSnapshot accountType;
     private final Long profileId;
     private final AccountStatus status;
+    private final VerificationStatus verificationStatus;
 
     public CurrentAccountPrincipal(Long identityId, String firebaseUid, String email,
                                    AccountTypeSnapshot accountType, Long profileId, AccountStatus status) {
+        this(identityId, firebaseUid, email, accountType, profileId, status, VerificationStatus.APPROVED);
+    }
+
+    public CurrentAccountPrincipal(Long identityId, String firebaseUid, String email,
+                                   AccountTypeSnapshot accountType, Long profileId, AccountStatus status,
+                                   VerificationStatus verificationStatus) {
         this.identityId = identityId;
         this.firebaseUid = firebaseUid;
         this.email = email;
         this.accountType = accountType;
         this.profileId = profileId;
         this.status = status;
+        this.verificationStatus = verificationStatus;
     }
 
     public Long getIdentityId() {
@@ -53,9 +62,17 @@ public class CurrentAccountPrincipal implements UserDetails {
         return status;
     }
 
+    public VerificationStatus getVerificationStatus() {
+        return verificationStatus;
+    }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         if (accountType == null) {
+            return Collections.emptyList();
+        }
+        if (accountType == AccountTypeSnapshot.ADMIN
+                && (status != AccountStatus.ACTIVE || verificationStatus != VerificationStatus.APPROVED)) {
             return Collections.emptyList();
         }
         return List.of(new SimpleGrantedAuthority("ROLE_" + accountType.name()));

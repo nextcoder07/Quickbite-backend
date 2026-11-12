@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../api/apiClient';
+import { adminService } from '../../services/AdminService';
 import { FileText, Shield, Clock } from 'lucide-react';
 
 export const AuditLogs = () => {
-  const cachedLogs = api.getCache('/admin/audit-logs');
-  const [logs, setLogs] = useState(() => cachedLogs || []);
-  const [loading, setLoading] = useState(() => !cachedLogs);
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchLogs = async () => {
       try {
-        const data = await api.get('/admin/audit-logs');
+        const data = await adminService.getAuditLogs();
         setLogs(data);
       } catch (err) {
         console.error('Failed to load audit logs:', err);

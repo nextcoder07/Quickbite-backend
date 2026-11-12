@@ -7,14 +7,17 @@ import com.quickbite.administration.AdminRepository;
 import com.quickbite.audit.AuditService;
 import com.quickbite.common.enums.AccountTypeSnapshot;
 import com.quickbite.common.enums.DeletionRequestStatus;
+import com.quickbite.common.enums.DeliveryStatus;
 import com.quickbite.common.exception.ConflictException;
 import com.quickbite.common.exception.ForbiddenException;
 import com.quickbite.common.exception.ResourceNotFoundException;
+import com.quickbite.delivery.DeliveryAssignmentRepository;
 import com.quickbite.delivery.DeliveryPartnerRepository;
 import com.quickbite.identity.AccountIdentity;
 import com.quickbite.identity.AccountIdentityRepository;
 import com.quickbite.security.CurrentAccountPrincipal;
 import com.quickbite.shop.ShopOwnerRepository;
+import com.quickbite.shop.ShopRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,7 +30,9 @@ public class AccountDeletionService {
     private final AccountDeletionRequestRepository deletionRequestRepository;
     private final AccountIdentityRepository identityRepository;
     private final ShopOwnerRepository shopOwnerRepository;
+    private final ShopRepository shopRepository;
     private final DeliveryPartnerRepository deliveryPartnerRepository;
+    private final DeliveryAssignmentRepository deliveryAssignmentRepository;
     private final AdminRepository adminRepository;
     private final AuditService auditService;
 
@@ -35,13 +40,17 @@ public class AccountDeletionService {
             AccountDeletionRequestRepository deletionRequestRepository,
             AccountIdentityRepository identityRepository,
             ShopOwnerRepository shopOwnerRepository,
+            ShopRepository shopRepository,
             DeliveryPartnerRepository deliveryPartnerRepository,
+            DeliveryAssignmentRepository deliveryAssignmentRepository,
             AdminRepository adminRepository,
             AuditService auditService) {
         this.deletionRequestRepository = deletionRequestRepository;
         this.identityRepository = identityRepository;
         this.shopOwnerRepository = shopOwnerRepository;
+        this.shopRepository = shopRepository;
         this.deliveryPartnerRepository = deliveryPartnerRepository;
+        this.deliveryAssignmentRepository = deliveryAssignmentRepository;
         this.adminRepository = adminRepository;
         this.auditService = auditService;
     }
@@ -57,11 +66,11 @@ public class AccountDeletionService {
 
         AccountTypeSnapshot type = principal.getAccountType();
         if (type != AccountTypeSnapshot.SHOP_OWNER && type != AccountTypeSnapshot.DELIVERY_PARTNER) {
-            throw new ForbiddenException("Account deletion requests are only applicable to Shop Owners and Delivery Partners. Buyers can self-deactivate.");
+            throw new ForbiddenException("Platform removal requests are required for Shop Owners and Delivery Partners. Buyers can self-deactivate.");
         }
 
         if (deletionRequestRepository.existsByRequesterIdAndStatus(requester.getId(), DeletionRequestStatus.PENDING)) {
-            throw new ConflictException("A pending deletion request already exists for this account");
+            throw new ConflictException("A pending removal request already exists for this account");
         }
 
         AccountDeletionRequest deletionRequest = new AccountDeletionRequest(requester, type, request.reason());
@@ -98,20 +107,29 @@ public class AccountDeletionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Deletion request not found with id: " + requestId));
 
         if (confirm) {
-            request.confirm(admin, note);
-
-            // Deactivate respective profile while preserving historical integrity
             if (request.getRequesterType() == AccountTypeSnapshot.SHOP_OWNER) {
                 shopOwnerRepository.findByIdentityId(request.getRequester().getId()).ifPresent(so -> {
+                    shopRepository.findByOwnerId(so.getId()).ifPresent(shop -> {
+                        shop.deactivate();
+                        shopRepository.save(shop);
+                    });
                     so.deactivate();
                     shopOwnerRepository.save(so);
                 });
             } else if (request.getRequesterType() == AccountTypeSnapshot.DELIVERY_PARTNER) {
                 deliveryPartnerRepository.findByIdentityId(request.getRequester().getId()).ifPresent(dp -> {
+                    boolean hasInTransit = deliveryAssignmentRepository
+                            .findByDeliveryPartnerIdOrderByAssignedAtDesc(dp.getId())
+                            .stream()
+                            .anyMatch(a -> a.getStatus() == DeliveryStatus.PICKED_UP);
+                    if (hasInTransit) {
+                        throw new ConflictException("Cannot remove delivery partner while an order is picked up and in transit");
+                    }
                     dp.deactivate();
                     deliveryPartnerRepository.save(dp);
                 });
             }
+            request.confirm(admin, note);
         } else {
             request.decline(admin, note);
         }
@@ -128,7 +146,11 @@ public class AccountDeletionService {
         if (principal == null || principal.getIdentityId() == null) {
             throw new ForbiddenException("Authentication required");
         }
-        return adminRepository.findByIdentityId(principal.getIdentityId())
-                .orElseThrow(() -> new ForbiddenException("Only admins can review deletion requests"));
+        Admin admin = adminRepository.findByIdentityId(principal.getIdentityId())
+                .orElseThrow(() -> new ForbiddenException("Only admins can review removal requests"));
+        if (!admin.canOperateOnPlatform()) {
+            throw new ForbiddenException("Admin account is pending approval or suspended");
+        }
+        return admin;
     }
 }

@@ -2,15 +2,19 @@ import { BaseModel } from './BaseModel';
 
 /**
  * Base Account domain model.
- * Encapsulates authentication identity credentials.
+ * Encapsulates authentication identity credentials & account lifecycle state.
  */
 export class Account extends BaseModel {
   constructor(data = {}) {
     super(data);
-    this.identityId = data.identityId !== undefined ? Number(data.identityId) : null;
+    this.identityId = data.identityId !== undefined && data.identityId !== null ? Number(data.identityId) : null;
+    this.profileId = data.profileId !== undefined && data.profileId !== null ? Number(data.profileId) : null;
     this.firebaseUid = data.firebaseUid || '';
     this.email = data.email || '';
     this.accountType = data.accountType || null; // BUYER, SHOP_OWNER, DELIVERY_PARTNER, ADMIN
+    this.displayName = data.displayName || 'User';
+    this.status = data.status || 'ACTIVE';
+    this.deletionPending = Boolean(data.deletionPending);
     this.token = data.token || '';
   }
 
@@ -21,72 +25,103 @@ export class Account extends BaseModel {
   hasRole(role) {
     return this.accountType === role;
   }
-}
-
-/**
- * Subclass for Buyer profile
- */
-export class BuyerAccount extends Account {
-  constructor(data = {}) {
-    super({ ...data, accountType: 'BUYER' });
-    this.profileId = data.profileId !== undefined ? Number(data.profileId) : null;
-    this.displayName = data.displayName || 'Buyer';
-    this.phone = data.phone || '';
-    this.status = data.status || 'ACTIVE';
-  }
 
   isActive() {
     return this.status === 'ACTIVE';
   }
+
+  isDeactivated() {
+    return this.status === 'DEACTIVATED';
+  }
+
+  hasPendingDeletion() {
+    return this.deletionPending;
+  }
+
+  isVerifiedForPlatform() {
+    return this.isActive();
+  }
 }
 
 /**
- * Subclass for Shop Owner profile
+ * Contactable intermediate class in the OOP account hierarchy
+ * shared by BuyerAccount, ShopOwnerAccount, and DeliveryPartnerAccount.
  */
-export class ShopOwnerAccount extends Account {
+export class ContactableAccount extends Account {
   constructor(data = {}) {
-    super({ ...data, accountType: 'SHOP_OWNER' });
-    this.profileId = data.profileId !== undefined ? Number(data.profileId) : null;
-    this.displayName = data.displayName || 'Shop Owner';
+    super(data);
     this.phone = data.phone || '';
-    this.status = data.status || 'ACTIVE';
-  }
-
-  isActive() {
-    return this.status === 'ACTIVE';
   }
 }
 
 /**
- * Subclass for Delivery Partner profile
+ * Subclass for Buyer profile (can order from anywhere)
  */
-export class DeliveryPartnerAccount extends Account {
+export class BuyerAccount extends ContactableAccount {
   constructor(data = {}) {
-    super({ ...data, accountType: 'DELIVERY_PARTNER' });
-    this.profileId = data.profileId !== undefined ? Number(data.profileId) : null;
-    this.displayName = data.displayName || 'Delivery Courier';
-    this.phone = data.phone || '';
-    this.status = data.status || 'ACTIVE';
+    super({ ...data, accountType: 'BUYER', displayName: data.displayName || 'Buyer' });
+    this.defaultAddress = data.defaultAddress || '';
+    this.defaultLatitude = data.defaultLatitude !== undefined && data.defaultLatitude !== null ? Number(data.defaultLatitude) : null;
+    this.defaultLongitude = data.defaultLongitude !== undefined && data.defaultLongitude !== null ? Number(data.defaultLongitude) : null;
+    this.foodInterests = data.foodInterests || '';
   }
 
-  isActive() {
-    return this.status === 'ACTIVE';
+  hasDefaultLocation() {
+    return Boolean(this.defaultAddress && this.defaultAddress.trim());
+  }
+
+  getFoodInterestTags() {
+    if (!this.foodInterests) return [];
+    return this.foodInterests
+      .split(/[,;|]+/)
+      .map((t) => t.trim())
+      .filter(Boolean);
   }
 }
 
 /**
- * Subclass for Campus Administrator profile
+ * Subclass for Shop Owner profile (requires Admin-approved shop to operate)
+ */
+export class ShopOwnerAccount extends ContactableAccount {
+  constructor(data = {}) {
+    super({ ...data, accountType: 'SHOP_OWNER', displayName: data.displayName || 'Shop Owner' });
+    this.hasShop = Boolean(data.hasShop);
+    this.shopId = data.shopId !== undefined && data.shopId !== null ? Number(data.shopId) : null;
+    this.shopApprovalStatus = data.shopApprovalStatus || null; // PENDING, APPROVED, REJECTED, SUSPENDED
+  }
+
+  isVerifiedForPlatform() {
+    return this.isActive() && this.hasShop && this.shopApprovalStatus === 'APPROVED';
+  }
+}
+
+/**
+ * Subclass for Delivery Partner profile (requires Admin verification to accept deliveries)
+ */
+export class DeliveryPartnerAccount extends ContactableAccount {
+  constructor(data = {}) {
+    super({ ...data, accountType: 'DELIVERY_PARTNER', displayName: data.displayName || 'Delivery Partner' });
+    this.verificationStatus = data.verificationStatus || 'PENDING'; // PENDING, APPROVED, REJECTED, SUSPENDED
+    this.vehicleDetails = data.vehicleDetails || '';
+    this.serviceArea = data.serviceArea || '';
+  }
+
+  isVerifiedForPlatform() {
+    return this.isActive() && this.verificationStatus === 'APPROVED';
+  }
+}
+
+/**
+ * Subclass for Platform Administrator profile
  */
 export class AdminAccount extends Account {
   constructor(data = {}) {
-    super({ ...data, accountType: 'ADMIN' });
-    this.profileId = data.profileId !== undefined ? Number(data.profileId) : null;
-    this.displayName = data.displayName || 'Campus Admin';
-    this.status = data.status || 'ACTIVE';
+    super({ ...data, accountType: 'ADMIN', displayName: data.displayName || 'Platform Admin' });
+    this.verificationStatus = data.verificationStatus || 'PENDING';
   }
 
-  isActive() {
-    return this.status === 'ACTIVE';
+  isVerifiedForPlatform() {
+    return this.isActive() && this.verificationStatus === 'APPROVED';
   }
 }
 
@@ -110,3 +145,4 @@ export class AccountFactory {
     }
   }
 }
+

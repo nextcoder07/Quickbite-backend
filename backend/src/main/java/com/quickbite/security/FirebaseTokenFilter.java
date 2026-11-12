@@ -7,6 +7,7 @@ import com.quickbite.administration.Admin;
 import com.quickbite.administration.AdminRepository;
 import com.quickbite.buyer.User;
 import com.quickbite.buyer.UserRepository;
+import com.quickbite.common.enums.AccountStatus;
 import com.quickbite.common.enums.AccountTypeSnapshot;
 import com.quickbite.delivery.DeliveryPartner;
 import com.quickbite.delivery.DeliveryPartnerRepository;
@@ -93,9 +94,13 @@ public class FirebaseTokenFilter extends OncePerRequestFilter {
                         if (identityOpt.isPresent()) {
                             AccountIdentity identity = identityOpt.get();
                             CurrentAccountPrincipal principal = resolvePrincipal(identity);
-                            UsernamePasswordAuthenticationToken authentication =
-                                    new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
-                            SecurityContextHolder.getContext().setAuthentication(authentication);
+                            if (principal.getStatus() == AccountStatus.DEACTIVATED) {
+                                SecurityContextHolder.clearContext();
+                            } else {
+                                UsernamePasswordAuthenticationToken authentication =
+                                        new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
+                                SecurityContextHolder.getContext().setAuthentication(authentication);
+                            }
                         } else {
                             // Identity not registered yet: provide unprovisioned principal
                             CurrentAccountPrincipal principal = new CurrentAccountPrincipal(
@@ -119,39 +124,39 @@ public class FirebaseTokenFilter extends OncePerRequestFilter {
     private CurrentAccountPrincipal resolvePrincipal(AccountIdentity identity) {
         Long id = identity.getId();
 
-        // 1. Check Buyer
-        Optional<User> buyerOpt = userRepository.findByIdentityId(id);
-        if (buyerOpt.isPresent()) {
-            User u = buyerOpt.get();
-            return new CurrentAccountPrincipal(id, identity.getFirebaseUid(), identity.getEmail(),
-                    AccountTypeSnapshot.BUYER, u.getId(), u.getAccountStatus());
-        }
-
-        // 2. Check Delivery Partner
-        Optional<DeliveryPartner> dpOpt = deliveryPartnerRepository.findByIdentityId(id);
-        if (dpOpt.isPresent()) {
-            DeliveryPartner dp = dpOpt.get();
-            return new CurrentAccountPrincipal(id, identity.getFirebaseUid(), identity.getEmail(),
-                    AccountTypeSnapshot.DELIVERY_PARTNER, dp.getId(), dp.getAccountStatus());
-        }
-
-        // 3. Check Shop Owner
-        Optional<ShopOwner> soOpt = shopOwnerRepository.findByIdentityId(id);
-        if (soOpt.isPresent()) {
-            ShopOwner so = soOpt.get();
-            return new CurrentAccountPrincipal(id, identity.getFirebaseUid(), identity.getEmail(),
-                    AccountTypeSnapshot.SHOP_OWNER, so.getId(), so.getAccountStatus());
-        }
-
-        // 4. Check Admin
+        // 1. Check Admin first (supports promoted buyers as well as direct admins)
         Optional<Admin> adminOpt = adminRepository.findByIdentityId(id);
         if (adminOpt.isPresent()) {
             Admin a = adminOpt.get();
             return new CurrentAccountPrincipal(id, identity.getFirebaseUid(), identity.getEmail(),
-                    AccountTypeSnapshot.ADMIN, a.getId(), a.getAccountStatus());
+                    AccountTypeSnapshot.ADMIN, a.getId(), a.getAccountStatus(), a.getVerificationStatus());
+        }
+
+        // 2. Check Buyer
+        Optional<User> buyerOpt = userRepository.findByIdentityId(id);
+        if (buyerOpt.isPresent()) {
+            User u = buyerOpt.get();
+            return new CurrentAccountPrincipal(id, identity.getFirebaseUid(), identity.getEmail(),
+                    AccountTypeSnapshot.BUYER, u.getId(), u.getAccountStatus(), u.getVerificationStatus());
+        }
+
+        // 3. Check Delivery Partner
+        Optional<DeliveryPartner> dpOpt = deliveryPartnerRepository.findByIdentityId(id);
+        if (dpOpt.isPresent()) {
+            DeliveryPartner dp = dpOpt.get();
+            return new CurrentAccountPrincipal(id, identity.getFirebaseUid(), identity.getEmail(),
+                    AccountTypeSnapshot.DELIVERY_PARTNER, dp.getId(), dp.getAccountStatus(), dp.getVerificationStatus());
+        }
+
+        // 4. Check Shop Owner
+        Optional<ShopOwner> soOpt = shopOwnerRepository.findByIdentityId(id);
+        if (soOpt.isPresent()) {
+            ShopOwner so = soOpt.get();
+            return new CurrentAccountPrincipal(id, identity.getFirebaseUid(), identity.getEmail(),
+                    AccountTypeSnapshot.SHOP_OWNER, so.getId(), so.getAccountStatus(), so.getVerificationStatus());
         }
 
         // Registered identity with no profile provisioned yet
-        return new CurrentAccountPrincipal(id, identity.getFirebaseUid(), identity.getEmail(), null, null, null);
+        return new CurrentAccountPrincipal(id, identity.getFirebaseUid(), identity.getEmail(), null, null, null, null);
     }
 }

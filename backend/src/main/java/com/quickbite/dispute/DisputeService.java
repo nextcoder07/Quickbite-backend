@@ -107,7 +107,11 @@ public class DisputeService {
         if (principal == null || principal.getIdentityId() == null) {
             throw new ForbiddenException("Authentication required");
         }
-        return adminRepository.findByIdentityId(principal.getIdentityId())
+        Admin admin = adminRepository.findByIdentityId(principal.getIdentityId())
                 .orElseThrow(() -> new ForbiddenException("Only admins can resolve disputes"));
+        if (!admin.canOperateOnPlatform()) {
+            throw new ForbiddenException("Admin account is pending approval or suspended");
+        }
+        return admin;
     }
 }

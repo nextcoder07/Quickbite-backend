@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../api/apiClient';
+import { shopOwnerService } from '../../services/ShopOwnerService';
 import { Plus, Edit2, Trash2, X, Package, AlertCircle, Upload } from 'lucide-react';
 
 export const ProductManagement = () => {
@@ -40,7 +41,7 @@ export const ProductManagement = () => {
 
   const fetchProducts = async () => {
     try {
-      const data = await api.get('/marketplace/owner/products');
+      const data = await shopOwnerService.getMyProducts();
       setProducts(data);
     } catch (err) {
       setError(err.message || 'Failed to load products');
@@ -71,7 +72,7 @@ export const ProductManagement = () => {
     setPrice(p.price);
     setStockQuantity(p.stockQuantity);
     setImagePath(p.imagePath || '');
-    setAvailable(p.available);
+    setAvailable(p.isAvailable ?? p.available ?? true);
     setModalOpen(true);
   };
 
@@ -80,24 +81,20 @@ export const ProductManagement = () => {
     setSaving(true);
     setError('');
 
+    const payload = {
+      name: name.trim(),
+      description: description.trim(),
+      price: Number(price),
+      stockQuantity: Number(stockQuantity),
+      imagePath: imagePath ? imagePath.trim() : null,
+      available,
+    };
+
     try {
       if (editingProduct) {
-        await api.put(`/marketplace/owner/products/${editingProduct.id}`, {
-          name: name.trim(),
-          description: description.trim(),
-          price: Number(price),
-          stockQuantity: Number(stockQuantity),
-          imagePath: imagePath ? imagePath.trim() : null,
-          available,
-        });
+        await shopOwnerService.updateProduct(editingProduct.id, payload);
       } else {
-        await api.post('/marketplace/owner/products', {
-          name: name.trim(),
-          description: description.trim(),
-          price: Number(price),
-          stockQuantity: Number(stockQuantity),
-          imagePath: imagePath ? imagePath.trim() : null,
-        });
+        await shopOwnerService.createProduct(payload);
       }
       setModalOpen(false);
       fetchProducts();
@@ -111,7 +108,7 @@ export const ProductManagement = () => {
   const handleDeleteProduct = async (productId) => {
     if (!window.confirm('Are you sure you want to delete this product?')) return;
     try {
-      await api.delete(`/marketplace/owner/products/${productId}`);
+      await shopOwnerService.deleteProduct(productId);
       fetchProducts();
     } catch (err) {
       alert(err.message || 'Failed to delete product');

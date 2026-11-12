@@ -1,6 +1,7 @@
 package com.quickbite.identity;
 
 import com.quickbite.identity.dto.AuthResponse;
+import com.quickbite.identity.dto.LoginRequest;
 import com.quickbite.identity.dto.SignupRequest;
 import com.quickbite.security.CurrentAccountPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
@@ -15,38 +16,39 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/auth")
-@Tag(name = "Authentication & Identity", description = "Endpoints for user registration, login, and profile lookup")
+@Tag(name = "Authentication & Identity", description = "Endpoints for user registration, login, logout, and profile lookup")
 public class AuthController {
 
     private final AuthService authService;
-    private final AccountIdentityRepository identityRepository;
 
-    public AuthController(AuthService authService, AccountIdentityRepository identityRepository) {
+    public AuthController(AuthService authService) {
         this.authService = authService;
-        this.identityRepository = identityRepository;
     }
 
     @PostMapping("/signup")
-    @Operation(summary = "Register profile", description = "Provisions a Buyer, Delivery Partner, or Shop Owner profile for an authenticated identity")
+    @Operation(summary = "Register profile", description = "Provisions a Buyer, Delivery Partner, Shop Owner, or Admin (with env key or pending admin approval)")
     public ResponseEntity<AuthResponse> signup(@Valid @RequestBody SignupRequest request) {
         AuthResponse response = authService.registerProfile(request);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
-    @GetMapping("/me")
-    @Operation(summary = "Get current authenticated profile", description = "Retrieves the active profile and role for the current Bearer token")
-    public ResponseEntity<AuthResponse> getCurrentUser(@AuthenticationPrincipal CurrentAccountPrincipal principal) {
-        AuthResponse response = authService.getCurrentUser(principal);
-        return ResponseEntity.ok(response);
+    @PostMapping("/login")
+    @Operation(summary = "Sign in with email and password", description = "Authenticates a registered Buyer, Shop Owner, Delivery Partner, or Admin account")
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+        return ResponseEntity.ok(authService.login(request));
     }
 
-    @PostMapping("/dev-login")
-    @Operation(summary = "Developer quick login", description = "Allows immediate role-based test authentication in local/development environment")
-    public ResponseEntity<AuthResponse> devLogin(@RequestBody Map<String, String> body) {
-        String email = body.getOrDefault("email", "buyer@quickbite.campus").toLowerCase().trim();
-        AccountIdentity identity = identityRepository.findByEmailIgnoreCase(email)
-                .orElseGet(() -> identityRepository.save(new AccountIdentity("dev-uid-" + email, email)));
-        AuthResponse response = authService.resolveAuthResponse(identity);
+    @PostMapping("/logout")
+    @Operation(summary = "Sign out", description = "Audits account logout for the active bearer session")
+    public ResponseEntity<Map<String, String>> logout(@AuthenticationPrincipal CurrentAccountPrincipal principal) {
+        authService.logout(principal);
+        return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
+    }
+
+    @GetMapping("/me")
+    @Operation(summary = "Get current authenticated profile", description = "Retrieves the active profile, role, and verification state for the current Bearer token")
+    public ResponseEntity<AuthResponse> getCurrentUser(@AuthenticationPrincipal CurrentAccountPrincipal principal) {
+        AuthResponse response = authService.getCurrentUser(principal);
         return ResponseEntity.ok(response);
     }
 }

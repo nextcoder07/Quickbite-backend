@@ -49,3 +49,4 @@ export class BusinessRuleViolationError extends AppError {
     super(message, 'BUSINESS_RULE_VIOLATION');
   }
 }
+

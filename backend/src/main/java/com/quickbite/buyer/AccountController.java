@@ -1,5 +1,6 @@
 package com.quickbite.buyer;
 
+import com.quickbite.administration.dto.AdminRoleRequestResponse;
 import com.quickbite.buyer.dto.UpdateProfileRequest;
 import com.quickbite.security.CurrentAccountPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
@@ -9,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -28,11 +30,15 @@ public class AccountController {
             @AuthenticationPrincipal CurrentAccountPrincipal principal,
             @Valid @RequestBody UpdateProfileRequest request) {
         User user = accountService.updateProfile(principal, request);
-        return ResponseEntity.ok(Map.of(
-                "message", "Profile updated successfully",
-                "displayName", user.getDisplayName(),
-                "phone", user.getPhone() != null ? user.getPhone() : ""
-        ));
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("message", "Profile updated successfully");
+        payload.put("displayName", user.getDisplayName());
+        payload.put("phone", user.getPhone() != null ? user.getPhone() : "");
+        payload.put("defaultAddress", user.getDefaultAddress() != null ? user.getDefaultAddress() : "");
+        payload.put("defaultLatitude", user.getDefaultLatitude());
+        payload.put("defaultLongitude", user.getDefaultLongitude());
+        payload.put("foodInterests", user.getFoodInterests() != null ? user.getFoodInterests() : "");
+        return ResponseEntity.ok(payload);
     }
 
     @PostMapping("/deactivate")
@@ -41,5 +47,21 @@ public class AccountController {
             @AuthenticationPrincipal CurrentAccountPrincipal principal) {
         accountService.deactivateAccount(principal);
         return ResponseEntity.ok(Map.of("message", "Account successfully deactivated"));
+    }
+
+    @PostMapping("/admin-request")
+    @Operation(summary = "Request admin role permission", description = "Allows an authenticated user or pending admin to ask existing Admins for Admin permission")
+    public ResponseEntity<AdminRoleRequestResponse> requestAdminRole(
+            @AuthenticationPrincipal CurrentAccountPrincipal principal,
+            @RequestBody(required = false) Map<String, String> body) {
+        String reason = body != null ? body.get("reason") : null;
+        return ResponseEntity.ok(accountService.requestAdminRole(principal, reason));
+    }
+
+    @GetMapping("/admin-request")
+    @Operation(summary = "List my admin role requests", description = "Retrieves Admin role promotion requests submitted by the current user")
+    public ResponseEntity<List<AdminRoleRequestResponse>> getMyAdminRequests(
+            @AuthenticationPrincipal CurrentAccountPrincipal principal) {
+        return ResponseEntity.ok(accountService.getMyAdminRequests(principal));
     }
 }

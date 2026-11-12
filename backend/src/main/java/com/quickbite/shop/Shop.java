@@ -29,6 +29,12 @@ public class Shop {
     @Column(name = "campus_location", nullable = false, length = 200)
     private String campusLocation;
 
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "approval_status", nullable = false, length = 20)
     private ShopStatus approvalStatus;
@@ -50,12 +56,19 @@ public class Shop {
 
     protected Shop() {}
 
-    public Shop(ShopOwner owner, String name, String description, String campusLocation, String imagePath) {
+    public Shop(ShopOwner owner, String name, String description, String location, String imagePath) {
+        this(owner, name, description, location, imagePath, null, null);
+    }
+
+    public Shop(ShopOwner owner, String name, String description, String location, String imagePath,
+                Double latitude, Double longitude) {
         this.owner = Objects.requireNonNull(owner, "owner must not be null");
         this.name = Objects.requireNonNull(name, "name must not be null").trim();
         this.description = description;
-        this.campusLocation = Objects.requireNonNull(campusLocation, "campusLocation must not be null").trim();
+        this.campusLocation = Objects.requireNonNull(location, "location must not be null").trim();
         this.imagePath = imagePath;
+        this.latitude = latitude;
+        this.longitude = longitude;
         this.approvalStatus = ShopStatus.PENDING;
         this.open = false;
         this.deactivated = false;
@@ -99,6 +112,18 @@ public class Shop {
         return campusLocation;
     }
 
+    public String getLocation() {
+        return campusLocation;
+    }
+
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
     public ShopStatus getApprovalStatus() {
         return approvalStatus;
     }
@@ -123,11 +148,18 @@ public class Shop {
         return deactivatedAt;
     }
 
-    public void updateDetails(String name, String description, String campusLocation, String imagePath) {
+    public void updateDetails(String name, String description, String location, String imagePath) {
+        updateDetails(name, description, location, imagePath, this.latitude, this.longitude);
+    }
+
+    public void updateDetails(String name, String description, String location, String imagePath,
+                              Double latitude, Double longitude) {
         if (name != null && !name.isBlank()) this.name = name.trim();
         if (description != null) this.description = description.trim();
-        if (campusLocation != null && !campusLocation.isBlank()) this.campusLocation = campusLocation.trim();
+        if (location != null && !location.isBlank()) this.campusLocation = location.trim();
         if (imagePath != null) this.imagePath = imagePath.trim();
+        if (latitude != null) this.latitude = latitude;
+        if (longitude != null) this.longitude = longitude;
         this.updatedAt = Instant.now();
     }
 

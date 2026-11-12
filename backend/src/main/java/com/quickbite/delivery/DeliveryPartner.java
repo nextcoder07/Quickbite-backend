@@ -1,125 +1,113 @@
 package com.quickbite.delivery;
 
-import com.quickbite.common.enums.AccountStatus;
+import com.quickbite.common.enums.AccountTypeSnapshot;
+import com.quickbite.common.enums.VerificationStatus;
 import com.quickbite.identity.AccountIdentity;
-import jakarta.persistence.*;
-import java.time.Instant;
-import java.util.Objects;
+import com.quickbite.identity.ContactableAccountProfile;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "delivery_partners")
-public class DeliveryPartner {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "identity_id", unique = true, nullable = false)
-    private AccountIdentity identity;
-
-    @Column(name = "display_name", nullable = false, length = 100)
-    private String displayName;
-
-    @Column(name = "phone", length = 20)
-    private String phone;
+public class DeliveryPartner extends ContactableAccountProfile {
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "account_status", nullable = false, length = 20)
-    private AccountStatus accountStatus;
+    @Column(name = "verification_status", nullable = false, length = 20)
+    private VerificationStatus verificationStatus;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+    @Column(name = "vehicle_details", length = 150)
+    private String vehicleDetails;
 
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
+    @Column(name = "service_area", length = 150)
+    private String serviceArea;
 
-    @Column(name = "deactivated_at")
-    private Instant deactivatedAt;
-
-    protected DeliveryPartner() {}
+    protected DeliveryPartner() {
+        super();
+    }
 
     public DeliveryPartner(AccountIdentity identity, String displayName, String phone) {
-        this.identity = Objects.requireNonNull(identity, "identity must not be null");
-        this.displayName = Objects.requireNonNull(displayName, "displayName must not be null").trim();
-        this.phone = phone != null ? phone.trim() : null;
-        this.accountStatus = AccountStatus.ACTIVE;
-        this.createdAt = Instant.now();
-        this.updatedAt = Instant.now();
+        this(identity, displayName, phone, null, null);
     }
 
+    public DeliveryPartner(AccountIdentity identity, String displayName, String phone,
+                           String vehicleDetails, String serviceArea) {
+        super(identity, displayName, phone);
+        this.verificationStatus = VerificationStatus.PENDING;
+        this.vehicleDetails = vehicleDetails != null ? vehicleDetails.trim() : null;
+        this.serviceArea = serviceArea != null ? serviceArea.trim() : null;
+    }
+
+    @Override
     @PrePersist
     protected void onCreate() {
-        if (createdAt == null) createdAt = Instant.now();
-        if (updatedAt == null) updatedAt = Instant.now();
-        if (accountStatus == null) accountStatus = AccountStatus.ACTIVE;
-    }
-
-    @PreUpdate
-    protected void onUpdate() {
-        this.updatedAt = Instant.now();
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public AccountIdentity getIdentity() {
-        return identity;
-    }
-
-    public String getDisplayName() {
-        return displayName;
-    }
-
-    public String getPhone() {
-        return phone;
-    }
-
-    public AccountStatus getAccountStatus() {
-        return accountStatus;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public Instant getDeactivatedAt() {
-        return deactivatedAt;
-    }
-
-    public void updateProfile(String displayName, String phone) {
-        if (displayName != null && !displayName.isBlank()) {
-            this.displayName = displayName.trim();
+        super.onCreate();
+        if (this.verificationStatus == null) {
+            this.verificationStatus = VerificationStatus.PENDING;
         }
-        if (phone != null) {
-            this.phone = phone.trim();
+    }
+
+    @Override
+    public VerificationStatus getVerificationStatus() {
+        return verificationStatus;
+    }
+
+    public String getVehicleDetails() {
+        return vehicleDetails;
+    }
+
+    public String getServiceArea() {
+        return serviceArea;
+    }
+
+    public void updateCourierDetails(String vehicleDetails, String serviceArea) {
+        if (vehicleDetails != null) {
+            this.vehicleDetails = vehicleDetails.trim();
         }
-        this.updatedAt = Instant.now();
+        if (serviceArea != null) {
+            this.serviceArea = serviceArea.trim();
+        }
+        touchUpdatedAt();
     }
 
-    public void deactivate() {
-        this.accountStatus = AccountStatus.DEACTIVATED;
-        this.deactivatedAt = Instant.now();
-        this.updatedAt = Instant.now();
+    public void approveVerification() {
+        this.verificationStatus = VerificationStatus.APPROVED;
+        reactivate();
     }
 
+    public void rejectVerification() {
+        this.verificationStatus = VerificationStatus.REJECTED;
+        touchUpdatedAt();
+    }
+
+    @Override
     public void suspend() {
-        this.accountStatus = AccountStatus.SUSPENDED;
-        this.updatedAt = Instant.now();
+        super.suspend();
+        this.verificationStatus = VerificationStatus.SUSPENDED;
     }
 
+    @Override
     public void reactivate() {
-        this.accountStatus = AccountStatus.ACTIVE;
-        this.deactivatedAt = null;
-        this.updatedAt = Instant.now();
+        super.reactivate();
+        if (this.verificationStatus == VerificationStatus.SUSPENDED || this.verificationStatus == VerificationStatus.PENDING) {
+            this.verificationStatus = VerificationStatus.APPROVED;
+        }
     }
 
-    public boolean isActive() {
-        return this.accountStatus == AccountStatus.ACTIVE;
+    public boolean isVerifiedAndActive() {
+        return isActive() && this.verificationStatus == VerificationStatus.APPROVED;
+    }
+
+    @Override
+    public AccountTypeSnapshot getAccountType() {
+        return AccountTypeSnapshot.DELIVERY_PARTNER;
+    }
+
+    @Override
+    public boolean canOperateOnPlatform() {
+        return isVerifiedAndActive();
     }
 }

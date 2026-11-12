@@ -1,6 +1,6 @@
-# QuickBite — Campus Food Marketplace & Ordering System
+# QuickBite — Anywhere Food Marketplace & Delivery Platform
 
-QuickBite is a desktop-based campus food marketplace connecting **Buyers** (students/faculty), **Shop Owners**, **Delivery Partners**, and **Campus Administrators**. Built with an Electron + React desktop frontend and a modular monolith Spring Boot backend backed by Supabase PostgreSQL, Firebase Authentication, and Razorpay test payments.
+QuickBite is a full-stack food marketplace and delivery platform connecting **Buyers**, **Shop Owners**, **Delivery Partners**, and **Platform Administrators** across **any location** — open to anyone ordering from, operating, or delivering in any neighborhood or city. Built with an Electron + React desktop/web frontend structured with OOP domain models/policies/services and a modular-monolith Spring Boot 3 backend backed by PostgreSQL (Supabase / H2 PostgreSQL mode in dev/test), BCrypt password authentication + Firebase token support, Razorpay test payments, and Supabase Storage.
 
 ---
 
@@ -8,168 +8,157 @@ QuickBite is a desktop-based campus food marketplace connecting **Buyers** (stud
 
 ```mermaid
 graph TD
-    subgraph Desktop [Desktop Application]
-        UI[React 18 + Vite] --> Electron[Electron Desktop Shell]
-        UI --> Client[Centralized API Client]
+    subgraph Desktop [Frontend Application - OOP React 18 + Vite]
+        UI[Pages & LocationPicker UI] --> Electron[Electron Desktop Shell]
+        UI --> Policies[RolePolicyFactory & Verification Gate]
+        UI --> Models[Domain Models: Account, Shop, Cart, Order]
+        Models --> Services[Service Layer -> ApiClient]
     end
 
-    subgraph Backend [Modular Monolith Spring Boot 3]
-        Client -->|HTTPS REST API / Bearer Token| Controller[REST Controllers]
-        Controller --> Security[Spring Security & Firebase Filter]
-        Security --> Services[Domain Services]
-        Services --> Repo[Spring Data JPA Repositories]
+    subgraph Backend [Modular Monolith - Spring Boot 3 / Java 17]
+        Services -->|HTTPS REST API / Bearer Token| Controller[REST Controllers]
+        Controller --> Security[Spring Security & FirebaseTokenFilter]
+        Security --> DomainServices[Domain Services & Pessimistic DB Locking]
+        DomainServices --> Repo[Spring Data JPA Repositories]
     end
 
     subgraph DataServices [Data & External Services]
-        Repo --> DB[(Supabase PostgreSQL)]
-        Services --> Storage[Supabase Storage Adapter]
-        Services --> Razorpay[Razorpay Gateway]
+        Repo --> DB[(PostgreSQL / Supabase DB)]
+        DomainServices --> Storage[Supabase Storage Adapter]
+        DomainServices --> Razorpay[Razorpay Gateway]
         Security --> FirebaseAuth[Firebase Admin SDK]
     end
 ```
 
-### Key Architectural Tenets
-1. **Frontend-Backend Separation**: The frontend never connects directly to PostgreSQL, stores database credentials, or authoritative business logic. All pricing, inventory reservations, authorization, and state transitions are strictly executed and validated on the backend.
-2. **Modular Monolith**: Organized into clean domain packages (`identity`, `buyer`, `shop`, `ordering`, `payment`, `delivery`, `administration`, `accountdeletion`, `feedback`, `dispute`, `audit`, `storage`, `security`, `common`, `config`).
-3. **No Mutable Role Column**: Strict profile exclusivity is enforced. An `AccountIdentity` connects to exactly one profile table (`users`, `delivery_partners`, `shop_owners`, or `admins`).
+### OOP Class Hierarchies
+
+#### Backend Java Entity Hierarchy
+- `BaseAuditableEntity` (`@MappedSuperclass`: `createdAt`, `updatedAt`, lifecycle hooks)
+  - `BaseAccountProfile` (abstract `@MappedSuperclass`: `identity`, `status`, `activate()`, `suspend()`, `deactivate()`, `isActive()`)
+    - `Admin`
+    - `ContactableAccountProfile` (abstract `@MappedSuperclass`: `displayName`, `phone`, `updateProfileInfo()`)
+      - `User` (Buyer with `defaultAddress`, `defaultLatitude`, `defaultLongitude`, `foodInterests`, `updateDeliveryLocation()`, `updateFoodInterests()`)
+      - `ShopOwner` (Vendor owning at most one `Shop`)
+      - `DeliveryPartner` (Courier with `verificationStatus`, `vehicleDetails`, `serviceArea`, `approveVerification()`, `rejectVerification()`, `isVerifiedAndActive()`, `canOperateOnPlatform()`)
+
+#### Frontend JavaScript OOP Hierarchy
+- **Models (`frontend/src/models/`)**:
+  - `BaseModel`
+    - `Account` -> `AdminAccount`
+    - `Account` -> `ContactableAccount` -> `BuyerAccount`, `ShopOwnerAccount`, `DeliveryPartnerAccount` (`AccountFactory`)
+    - `Shop` (supports `location`, `latitude`, `longitude`, `hasCoordinates()`, `getMapUrl()`, `matchesSearch()`, `getMatchingProducts()`)
+    - `Product`, `Cart` (aggregate root enforcing single-shop cart & ₹300 free-delivery threshold), `CartItem`, `Order`
+- **Polymorphic Policies (`frontend/src/policies/RolePolicy.js`)**:
+  - `BaseRolePolicy` -> `BuyerPolicy`, `ShopOwnerPolicy`, `DeliveryPartnerPolicy`, `AdminPolicy` (`RolePolicyFactory`)
+  - Enforces `getDefaultRoute(account)` and `canAccessRoute(pathname, account)` so unverified shop owners & delivery partners are confined strictly to verification pages.
+- **Services (`frontend/src/services/`)**:
+  - `BaseService` -> `AuthService`, `MarketplaceService`, `ShopOwnerService`, `OrderService`, `DeliveryService`, `AdminService`
 
 ---
 
-## 📊 Complete Database Schema (16 Tables)
+## 📊 Database Schema & Migrations (16 Tables)
 
-Managed via Flyway versioned migration (`V1__initial_schema.sql`):
+Managed via Flyway migrations (`V1__initial_schema.sql`, `V2__general_locations_verification_and_locking.sql`, and `V3__buyer_food_interests.sql`):
 
-| # | Table Name | Purpose | Key Constraints & Invariants |
+| # | Table Name | Purpose | Key Constraints & Enhancements |
 |---|---|---|---|
-| 1 | `account_identities` | Auth identity root | Unique `firebase_uid`, case-insensitive unique `email` |
-| 2 | `users` | Buyer profiles | Unique `identity_id`, `account_status` (`ACTIVE`, `DEACTIVATED`, `SUSPENDED`) |
-| 3 | `delivery_partners` | Delivery courier profiles | Unique `identity_id`, vehicle/phone details |
-| 4 | `shop_owners` | Food shop vendor profiles | Unique `identity_id`, manages maximum one shop |
-| 5 | `admins` | Campus administrators | Unique `identity_id`, provisioned via trusted pipeline only |
-| 6 | `shops` | Campus food establishments | `approval_status` (`PENDING`, `APPROVED`, `REJECTED`, `SUSPENDED`), `is_open`, `is_deactivated` |
-| 7 | `products` | Menu items | `price >= 0`, `stock_quantity >= 0`, `is_available` |
-| 8 | `orders` | Customer food orders | `total_amount = subtotal + delivery_fee - discount_amount`, state transition graph |
+| 1 | `account_identities` | Auth identity root | Unique `firebase_uid`, case-insensitive unique `email`, `password_hash` |
+| 2 | `users` | Buyer profiles | Unique `identity_id`, `account_status`, `default_address`, `default_latitude`, `default_longitude`, `food_interests` |
+| 3 | `delivery_partners` | Courier profiles | Unique `identity_id`, `verification_status` (`PENDING`, `APPROVED`, `REJECTED`, `SUSPENDED`), `vehicle_details`, `service_area` |
+| 4 | `shop_owners` | Vendor profiles | Unique `identity_id`, manages maximum one shop |
+| 5 | `admins` | Platform administrators | Unique `identity_id`, provisioned securely |
+| 6 | `shops` | Food establishments | `campus_location` (general address/place), `latitude`, `longitude`, `approval_status`, `is_open`, `is_deactivated` |
+| 7 | `products` | Menu items | `price >= 0`, `stock_quantity >= 0`, `is_available`, indexed for product search |
+| 8 | `orders` | Customer food orders | `total_amount = subtotal + delivery_fee - discount_amount`, `delivery_address`, `delivery_latitude`, `delivery_longitude` |
 | 9 | `order_items` | Immutable item snapshots | Preserves `product_name_snapshot`, `unit_price_snapshot`, `quantity > 0` |
-| 10 | `payments` | Transaction records | `provider` (`RAZORPAY`), `idempotency_key`, `status` (`CAPTURED`, etc.) |
-| 11 | `refunds` | Refund requests & tracking | Capped at captured payment amount; idempotency enforced |
-| 12 | `delivery_assignments`| Courier delivery tasks | 1-to-1 with order; assigned partner access control |
-| 13 | `account_deletion_requests` | Vendor/courier deactivations | Admin review workflow; self-review strictly prohibited |
+| 10 | `payments` | Transaction records | `provider` (`RAZORPAY`), `idempotency_key`, `status` |
+| 11 | `refunds` | Refund tracking | Capped at captured payment amount; idempotency enforced |
+| 12 | `delivery_assignments` | Courier delivery tasks | 1-to-1 with order, `@Version` optimistic lock column + `idx_delivery_assignments_status_partner` |
+| 13 | `account_deletion_requests` | Removal confirmations | Admin review workflow; deactivates both `ShopOwner` & their `Shop` (and `DeliveryPartner`) |
 | 14 | `feedback` | Buyer ratings & reviews | 1 per delivered order; rating 1–5 stars |
-| 15 | `disputes` | Order disputes & resolution | Raised by buyer/admin; admin resolution audit trail |
-| 16 | `audit_logs` | Append-only security audit | Actor identity, target type, structured JSON metadata |
+| 15 | `disputes` | Order disputes | Raised by buyer; admin resolution audit trail |
+| 16 | `audit_logs` | Append-only security audit | Login/logout, approvals, claims, removals, structured metadata |
 
 ---
 
-## 🔒 Security & Authorization Highlights
+## 🔒 Security, Verification Gate & Delivery Locking Highlights
 
-- **Mutually Exclusive Identities**: Profiles are enforced atomically. Creating a profile locks the identity row and verifies no other profile exists.
-- **Resource-Level Authorization**: Shop owners can only edit their own shop/products. Delivery partners can only see and update their assigned orders. Buyers can only see their own orders and raise disputes on their own orders.
-- **Server-Side Pricing**: The cart price sent by the client is never trusted. The backend recalculates item line totals, subtotal, delivery fees (free over ₹200), and validates stock.
-- **Payment Verification**: Razorpay payment signatures are validated using HMAC-SHA256 (`order_id + "|" + payment_id` against key secret).
-- **Electron Hardening**: `nodeIntegration: false`, `contextIsolation: true`, secure preload bridge (`window.quickbiteDesktop`), strict CSP headers.
+- **Proper Login & Logout**: Real email + password authentication (`BCryptPasswordEncoder` via `/api/v1/auth/login` and `/api/v1/auth/signup`), session verification (`/api/v1/auth/me`), and audited logout (`/api/v1/auth/logout`), alongside Firebase Admin token support (`FirebaseTokenFilter`).
+- **Strict Onboarding & Verification Gate**:
+  - Signing up as a `SHOP_OWNER` navigates exclusively to `/shop/onboarding` (`VerificationGate`) until an Admin approves their shop.
+  - Signing up as a `DELIVERY_PARTNER` navigates exclusively to `/delivery/verification` (`VerificationGate`) until an Admin verifies their profile.
+  - Backend endpoints (`MarketplaceController`, `OrderService`, `DeliveryController`) also reject requests from unverified or deactivated accounts with `403 Forbidden`.
+- **Admin Confirmation for Platform Removal**: Shop Owners and Delivery Partners must submit an `AccountDeletionRequest` (`/api/v1/account/deletion-request`); platform presence is only removed once Admin confirms (`POST /api/v1/admin/deletion-requests/{id}/review`), which also deactivates the owner's `Shop`.
+- **Concurrent Delivery Acceptance DB Lock**:
+  - `DeliveryService.claimAssignment` runs under `@Transactional(isolation = Isolation.READ_COMMITTED)` using:
+    1. `LockModeType.PESSIMISTIC_WRITE` (`SELECT ... FOR UPDATE`),
+    2. Optimistic `@Version` on `DeliveryAssignment`, and
+    3. Atomic conditional JPQL update (`WHERE status = 'UNASSIGNED' AND deliveryPartner IS NULL`) + DB verification re-read, returning `409 Conflict` to any competing delivery partner.
+- **Personalized & Cold-Start Buyer Discovery + Dedicated Shops Directory**:
+  - **Default Buyer Page (`/` — "For You • Top Items")**: `RecommendationService` (`GET /api/v1/marketplace/products/recommended`) ranks menu items using a hybrid score combining Bayesian rating priors, global popularity, shop open/location proximity, buyer `foodInterests` tags, and past purchase history. Fresh buyers with no prior orders or profile interests automatically receive diverse cold-start top-rated picks interleaved across shops.
+  - **Browse All Shops (`/shops`)**: Loads all approved shops upfront before any search filter is applied, while allowing filtering by **shop name**, **product/food item name**, or **any location** (`/api/v1/marketplace/shops?q=&location=` and `/api/v1/marketplace/products/search?q=&location=`).
+- **Server-Side Pricing & Payment Verification**: Backend `PricingService` calculates totals cleanly (orders below ₹300 incur ₹30 delivery fee; orders ₹300+ qualify for free delivery) and verifies Razorpay HMAC-SHA256 payment signatures.
 
 ---
 
 ## 🛠 Technology Stack
 
 - **Desktop Shell**: Electron 30
-- **Frontend**: React 18, Vite, React Router 6, Lucide React, Vanilla CSS3 (Custom design system)
-- **Backend**: Java 17 / 21, Spring Boot 3.3.5, Spring Security 6, Spring Data JPA / Hibernate, Flyway
-- **Database**: Supabase PostgreSQL (dev/offline fallback via H2 PostgreSQL mode)
-- **External Services**: Firebase Admin SDK (Auth tokens), Razorpay Java SDK (Test payments), Supabase Storage
+- **Frontend**: React 18, Vite, React Router 6, Lucide React, Vanilla CSS3
+- **Backend**: Java 17+, Spring Boot 3.3.5, Spring Security 6, Spring Data JPA / Hibernate, Flyway
+- **Database**: PostgreSQL (Supabase; local H2 PostgreSQL-mode supported offline via default `dev` profile)
+- **External Services**: Firebase Admin SDK, Razorpay Java SDK (Test mode), Supabase Storage
 
 ---
 
 ## 🚀 Getting Started Locally
 
-### Prerequisites
-- **Java**: JDK 17 or higher (`java -version`)
-- **Maven**: 3.8+ (included or installed)
-- **Node.js**: v18+ and npm (`node -v`)
+### 1. Environment Variables
+Keep or copy `.env.example` -> `.env` in root, `backend/`, and `frontend/` as configured for local/cloud keys.
 
-### 1. Clone & Configure Environment Variables
-Copy `.env.example` to `.env` in the root and fill in required test keys:
-```bash
-cp .env.example .env
-```
-
-### 2. Run the Backend
+### 2. Run Backend Tests & API Server
 ```bash
 cd backend
-mvn clean test             # Run the full automated test suite
-mvn spring-boot:run        # Start the Spring Boot API server on port 8080
+mvn test                   # Run the full automated test suite (22 tests incl. recommendations & DB locking)
+mvn spring-boot:run        # Start API on port 8080 (defaults to dev profile; set H2 datasource URL env override if remote DB port is blocked)
 ```
-API Documentation (Swagger UI): `http://localhost:8080/swagger-ui.html`
-OpenAPI Specs: `http://localhost:8080/v3/api-docs`
+Swagger UI: `http://localhost:8080/swagger-ui.html`
 
-### 3. Run the Desktop Frontend (Vite Dev Server)
-In a separate terminal:
+### 3. Run Frontend Web / Electron App
 ```bash
 cd frontend
 npm install
-npm run dev
-```
-Access the web view at `http://localhost:5173`.
-
-### 4. Run Desktop Electron Shell
-```bash
-cd frontend
-npm run electron:dev
+npm run dev                # Starts Vite dev server on http://localhost:5173
+# or:
+npm run electron:dev       # Launches Electron desktop shell
 ```
 
 ---
 
 ## 🧪 Automated Test Suite
 
-Run backend automated tests with:
-```bash
-cd backend
-mvn test
-```
-The test suite covers:
-- **`AuthServiceTest`**: Identity creation, buyer profile provisioning, and prevention of duplicate profiles.
-- **`PricingServiceTest`**: Exact calculations of subtotal, free delivery fee threshold (over ₹200 vs under ₹200), and invariant check (`total = subtotal + fee - discount`).
-- **`OrderStateTransitionTest`**: Order lifecycle validations (`PLACED` -> `ACCEPTED` -> `PREPARING` -> `READY` -> `OUT_FOR_DELIVERY` -> `DELIVERED`), cancellation eligibility, and rejection of invalid backwards transitions.
-- **`DeliveryStateTransitionTest`**: Courier lifecycle (`ASSIGNED` -> `ACCEPTED` -> `PICKED_UP` -> `DELIVERED`).
-- **`FeedbackEligibilityTest`**: Enforces feedback submission only on `DELIVERED` orders, buyer ownership check, and rating bounds (1–5).
-- **`RefundCapAndStateTest`**: Verifies that refund requests cannot exceed the captured payment amount and checks idempotency.
+Run `mvn test` inside `backend/` to execute all 9 test classes:
+- **`RecommendationServiceTest`**: Personalized interest/order scoring, fresh-user cold-start diversity, and upfront all-shop loading + search filters.
+- **`DeliveryConcurrencyTest`**: Multi-threaded race simulation verifying only 1 delivery partner can claim an assignment under DB locking, verification-gate enforcement, and admin-confirmed shop+owner removal.
+- **`AuthServiceTest`**: Identity creation, profile provisioning, and mutual-exclusivity checks.
+- **`PricingServiceTest`**: Subtotal calculations, ₹300 free-delivery threshold, and total invariants.
+- **`OrderStateTransitionTest`**: Order lifecycle transitions and cancellation eligibility.
+- **`DeliveryStateTransitionTest`**: Assignment pickup and delivery lifecycle checks.
+- **`FeedbackEligibilityTest`**: Rating bounds and delivered-order ownership checks.
+- **`RefundCapAndStateTest`**: Refund cap enforcement and idempotency.
+- **`StorageServiceTest`**: Storage adapter upload/validation behavior.
 
 ---
 
-## 📦 Building for Production
+## 👥 Starter Accounts & Admin Security Key
 
-### Build the Backend JAR
-```bash
-cd backend
-mvn clean package -DskipTests
-```
-The executable fat JAR is generated at `backend/target/quickbite-backend-1.0.0.jar`.
-Run it anywhere with:
-```bash
-java -jar backend/target/quickbite-backend-1.0.0.jar
-```
+When the database is empty on first startup, `DataSeeder` creates **1 starter account per role** (password **`QuickBite@123`**):
+- **Admin**: `admin@quickbite.com` (Platform Operations Admin)
+- **Buyer**: `buyer@quickbite.com` (Aarav Sharma — Indiranagar, Bengaluru)
+- **Shop Owner**: `shop@quickbite.com` (Chef Vikram Das — *Urban Spice Kitchen*)
+- **Delivery Partner**: `delivery@quickbite.com` (Rohan Patel — Verified & Active)
 
-### Build the Frontend Static Assets
-```bash
-cd frontend
-npm run build
-```
-Optimized distribution files are placed into `frontend/dist/`.
-
-### Package Desktop Application (Windows Installer / Executable)
-```bash
-cd frontend
-npm run dist
-```
-Uses `electron-builder` to package the React bundle and Electron main process into Windows installer/portable executables in `frontend/release/`.
-
----
-
-## 👥 Demo Accounts (Development Profile)
-When running with the default development seed enabled (`quickbite.seed-demo-data: true`):
-- **Buyer**: `buyer@campus.edu` (John Doe)
-- **Shop Owner**: `owner@campus.edu` (Green Bowl Salads)
-- **Delivery Partner**: `courier@campus.edu` (Alex Swift)
-- **Admin**: `admin@campus.edu` (Campus Admin)
-
-You can toggle between all 4 accounts seamlessly using the in-app role switch button on the navigation bar!
+### Admin Onboarding & Key Protection
+- **Instant Admin Signup**: Provide `ADMIN_SIGNUP_KEY` during signup to activate an Admin account immediately.
+- **Request Admin Permission**: New signups (leaving the key blank) or existing Buyers (from **Profile → Request Admin Permission**) can ask active Admins for permission, which an active Admin can approve or decline under **Admin Team & Keys**.
+- **Suspending an Admin**: Suspending or reactivating an Admin requires entering `ADMIN_SIGNUP_KEY`.

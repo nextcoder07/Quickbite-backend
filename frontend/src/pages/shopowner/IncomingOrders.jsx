@@ -1,22 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../api/apiClient';
+import { shopOwnerService } from '../../services/ShopOwnerService';
 import { StatusBadge } from '../../components/StatusBadge';
-import { ShoppingBag, Clock, Check, X, ChefHat, CheckCircle2, MessageSquare } from 'lucide-react';
+import { ShoppingBag, Check, X, ChefHat, CheckCircle2, MessageSquare, MapPin, ExternalLink } from 'lucide-react';
 
 export const IncomingOrders = () => {
-  const cachedOrders = api.getCache('/orders/shop');
-  const [orders, setOrders] = useState(() => cachedOrders || []);
-  const [loading, setLoading] = useState(() => !cachedOrders);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   const fetchShopOrders = async () => {
     try {
-      const data = await api.get('/orders/shop');
+      const data = await shopOwnerService.getIncomingOrders();
       setOrders(data);
     } catch (err) {
-      if (!cachedOrders) {
-        setError(err.message || 'Failed to load shop orders');
-      }
+      setError(err.message || 'Failed to load shop orders');
     } finally {
       setLoading(false);
     }
@@ -30,7 +27,7 @@ export const IncomingOrders = () => {
 
   const handleUpdateStatus = async (orderId, newStatus) => {
     try {
-      await api.patch(`/orders/${orderId}/status`, { status: newStatus });
+      await shopOwnerService.updateOrderStatus(orderId, newStatus);
       fetchShopOrders();
     } catch (err) {
       alert(err.message || 'Status transition failed');
@@ -42,7 +39,7 @@ export const IncomingOrders = () => {
       <div>
         <h1 style={{ fontSize: '1.8rem', marginBottom: '4px' }}>Live Kitchen Orders</h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          Accept incoming student orders and manage food preparation stages
+          Accept incoming customer orders and manage food preparation stages
         </p>
       </div>
 
@@ -85,7 +82,7 @@ export const IncomingOrders = () => {
               </div>
 
               {/* Items List */}
-              <div style={{ padding: '12px 16px', background: 'var(--bg-surface)', borderRadius: '10px', marginBottom: '16px' }}>
+              <div style={{ padding: '12px 16px', background: 'var(--bg-surface)', borderRadius: '10px', marginBottom: '14px' }}>
                 {order.items.map((item) => (
                   <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: '0.88rem' }}>
                     <span>{item.quantity}x {item.productName}</span>
@@ -93,6 +90,38 @@ export const IncomingOrders = () => {
                   </div>
                 ))}
               </div>
+
+              {order.deliveryAddress && (
+                <div style={{
+                  padding: '10px 14px',
+                  background: 'rgba(15, 23, 42, 0.5)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '8px',
+                  fontSize: '0.82rem',
+                  color: 'var(--text-muted)',
+                  marginBottom: '12px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '8px',
+                  flexWrap: 'wrap',
+                }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <MapPin size={14} color="#ff6433" />
+                    <span><strong style={{ color: '#fff' }}>Deliver to:</strong> {order.deliveryAddress}</span>
+                  </span>
+                  {order.hasDeliveryCoordinates?.() && (
+                    <a
+                      href={order.getDeliveryMapUrl()}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ color: 'var(--brand-primary)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <ExternalLink size={12} /> Map Pin
+                    </a>
+                  )}
+                </div>
+              )}
 
               {order.buyerNote && (
                 <div style={{
@@ -108,7 +137,7 @@ export const IncomingOrders = () => {
                   gap: '8px'
                 }}>
                   <MessageSquare size={16} />
-                  <span><strong>Student Note:</strong> {order.buyerNote}</span>
+                  <span><strong>Customer Note:</strong> {order.buyerNote}</span>
                 </div>
               )}
 

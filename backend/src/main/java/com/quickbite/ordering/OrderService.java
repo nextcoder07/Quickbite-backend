@@ -108,6 +108,16 @@ public class OrderService {
 
         String orderNumber = "QB-" + System.currentTimeMillis() + "-" + UUID.randomUUID().toString().substring(0, 5).toUpperCase();
 
+        String resolvedAddress = request.deliveryAddress();
+        if ((resolvedAddress == null || resolvedAddress.isBlank()) && buyer.getDefaultAddress() != null && !buyer.getDefaultAddress().isBlank()) {
+            resolvedAddress = buyer.getDefaultAddress();
+        }
+        if (resolvedAddress == null || resolvedAddress.isBlank()) {
+            throw new BadRequestException("Delivery address / location is required");
+        }
+        Double deliveryLat = request.deliveryLatitude() != null ? request.deliveryLatitude() : buyer.getDefaultLatitude();
+        Double deliveryLng = request.deliveryLongitude() != null ? request.deliveryLongitude() : buyer.getDefaultLongitude();
+
         CustomerOrder order = new CustomerOrder(
                 orderNumber,
                 buyer,
@@ -115,7 +125,10 @@ public class OrderService {
                 pricing.subtotal(),
                 pricing.deliveryFee(),
                 pricing.discountAmount(),
-                request.buyerNote()
+                request.buyerNote(),
+                resolvedAddress,
+                deliveryLat,
+                deliveryLng
         );
 
         for (OrderItem item : orderItems) {
@@ -148,7 +161,7 @@ public class OrderService {
             restoreStockForOrder(order);
             deliveryAssignmentRepository.findByOrderId(order.getId()).ifPresent(da -> {
                 if (da.getStatus() == DeliveryStatus.UNASSIGNED || da.getStatus() == DeliveryStatus.ASSIGNED) {
-                    da.reportFailure(null, "Order cancelled or rejected by shop");
+                    da.cancelByOrder("Order rejected or cancelled");
                 }
             });
         }
@@ -177,7 +190,7 @@ public class OrderService {
 
         deliveryAssignmentRepository.findByOrderId(order.getId()).ifPresent(da -> {
             if (da.getStatus() != DeliveryStatus.DELIVERED) {
-                da.reportFailure(null, "Order cancelled: " + reason);
+                da.cancelByOrder("Order cancelled: " + reason);
             }
         });
 
@@ -206,6 +219,9 @@ public class OrderService {
                 .orElseThrow(() -> new ForbiddenException("Only shop owners can view shop orders"));
         Shop shop = shopRepository.findByOwnerId(shopOwner.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("No shop found for owner"));
+        if (!shopOwner.isActive() || shop.getApprovalStatus() != com.quickbite.common.enums.ShopStatus.APPROVED || shop.isDeactivated()) {
+            throw new ForbiddenException("Your shop must be verified and approved by admin before managing orders");
+        }
 
         return orderRepository.findByShopIdOrderByPlacedAtDesc(shop.getId())
                 .stream()
@@ -237,6 +253,11 @@ public class OrderService {
             case ACCEPTED, REJECTED, PREPARING, READY -> {
                 if (!order.getShop().getOwner().getIdentity().getId().equals(principal.getIdentityId())) {
                     throw new ForbiddenException("Only the shop owner can update preparation and acceptance status");
+                }
+                if (order.getShop().getApprovalStatus() != com.quickbite.common.enums.ShopStatus.APPROVED
+                        || order.getShop().isDeactivated()
+                        || !order.getShop().getOwner().isActive()) {
+                    throw new ForbiddenException("Shop is not verified/active to update order status");
                 }
             }
             case OUT_FOR_DELIVERY, DELIVERED -> {

@@ -93,9 +93,21 @@ export const ShopDetail = () => {
           }}>
             <div>
               <h1 style={{ fontSize: '2rem', color: '#fff', marginBottom: '6px' }}>{shop.name}</h1>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#cbd5e1', fontSize: '0.9rem' }}>
-                <MapPin size={16} color="#ff6433" />
-                <span>{shop.campusLocation}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#cbd5e1', fontSize: '0.9rem', flexWrap: 'wrap' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <MapPin size={16} color="#ff6433" />
+                  <span>{shop.location || shop.campusLocation}</span>
+                </span>
+                {shop.hasCoordinates() && (
+                  <a
+                    href={shop.getMapUrl()}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ fontSize: '0.8rem', color: '#ffb096', textDecoration: 'underline' }}
+                  >
+                    Open Pin ({shop.latitude.toFixed(4)}, {shop.longitude.toFixed(4)})
+                  </a>
+                )}
               </div>
             </div>
 

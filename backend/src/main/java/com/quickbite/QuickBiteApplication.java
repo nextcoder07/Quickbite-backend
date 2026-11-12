@@ -21,6 +21,7 @@ public class QuickBiteApplication {
 
     private static void loadDotEnv() {
         File[] candidates = new File[] {
+                new File("backend/.env"),
                 new File(".env"),
                 new File("../.env")
         };
@@ -54,7 +55,6 @@ public class QuickBiteApplication {
                         }
                     }
                     log.info("Loaded {} environment properties from {}", count, file.getAbsolutePath());
-                    break;
                 } catch (Exception ex) {
                     log.warn("Failed reading .env file: {}", ex.getMessage());
                 }

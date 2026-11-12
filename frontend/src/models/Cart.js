@@ -8,7 +8,7 @@ import { BusinessRuleViolationError } from '../errors/AppErrors';
  * Enforces business invariants:
  * 1. Single-Shop Ordering: Cannot mix items from different shops.
  * 2. Non-negative quantities.
- * 3. Free delivery threshold calculation (aligned with campus policy: ₹200).
+ * 3. Free delivery threshold calculation (aligned with backend PricingService: ₹300).
  * 4. Total calculation: subtotal + deliveryFee.
  */
 export class Cart {
@@ -108,13 +108,13 @@ export class Cart {
 
   /**
    * Delivery fee calculation rule:
-   * Orders below ₹200 incur ₹30 delivery fee.
-   * Orders ₹200 and above get FREE delivery.
+   * Orders below ₹300 incur ₹30 delivery fee.
+   * Orders ₹300 and above get FREE delivery.
    */
   getDeliveryFee() {
     const sub = this.getSubtotal();
     if (sub <= 0) return 0;
-    return sub < 200 ? 30 : 0;
+    return sub < 300 ? 30 : 0;
   }
 
   getTotalAmount() {
@@ -123,24 +123,34 @@ export class Cart {
 
   getFreeDeliveryRemaining() {
     const sub = this.getSubtotal();
-    return Math.max(0, 200 - sub);
+    return Math.max(0, 300 - sub);
   }
 
   /**
    * Generates immutable payload for backend /orders/checkout endpoint
    */
-  toCheckoutPayload(deliveryAddress, notes = '') {
+  toCheckoutPayload(deliveryAddress, buyerNote = '', deliveryLatitude = null, deliveryLongitude = null) {
     if (this.isEmpty()) {
       throw new BusinessRuleViolationError('Cannot checkout an empty cart');
     }
     if (!this.shop) {
       throw new BusinessRuleViolationError('Cart is missing target shop information');
     }
+    const addr = String(deliveryAddress || '').trim();
+    if (!addr) {
+      throw new BusinessRuleViolationError('Delivery address is required');
+    }
 
     return {
       shopId: this.shop.id,
-      deliveryAddress: String(deliveryAddress || '').trim(),
-      notes: String(notes || '').trim(),
+      deliveryAddress: addr,
+      deliveryLatitude: deliveryLatitude !== null && deliveryLatitude !== undefined && deliveryLatitude !== ''
+        ? Number(deliveryLatitude)
+        : null,
+      deliveryLongitude: deliveryLongitude !== null && deliveryLongitude !== undefined && deliveryLongitude !== ''
+        ? Number(deliveryLongitude)
+        : null,
+      buyerNote: String(buyerNote || '').trim(),
       items: this.items.map((i) => ({
         productId: i.getProductId(),
         quantity: i.quantity,
@@ -164,3 +174,4 @@ export class Cart {
     return new Cart(items, shop);
   }
 }
+

@@ -1,5 +1,6 @@
 package com.quickbite.ordering.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -13,5 +14,14 @@ public record CheckoutRequest(
         @Valid
         List<OrderItemRequest> items,
 
-        String buyerNote
-) {}
+        @JsonAlias("notes")
+        String buyerNote,
+
+        String deliveryAddress,
+        Double deliveryLatitude,
+        Double deliveryLongitude
+) {
+    public CheckoutRequest(Long shopId, List<OrderItemRequest> items, String buyerNote) {
+        this(shopId, items, buyerNote, null, null, null);
+    }
+}
