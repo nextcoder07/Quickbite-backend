@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../api/apiClient';
 import { AlertTriangle, CheckCircle2, Shield } from 'lucide-react';
@@ -8,6 +9,7 @@ import { FoodInterestSelector } from '../../components/FoodInterestSelector';
 
 export const Profile = () => {
   const { user, account, updateProfile, refreshAccount, logout } = useAuth();
+  const navigate = useNavigate();
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [foodInterests, setFoodInterests] = useState(account?.foodInterests || user?.foodInterests || '');
@@ -26,7 +28,7 @@ export const Profile = () => {
   useEffect(() => {
     api.get('/account/admin-request')
       .then((data) => setAdminRequests(Array.isArray(data) ? data : []))
-      .catch(() => {});
+      .catch((err) => setError(err.message || 'Failed to load admin permission requests'));
   }, []);
 
   const handleUpdate = async (e) => {
@@ -69,7 +71,8 @@ export const Profile = () => {
     try {
       await api.post('/account/deactivate');
       alert('Your account has been deactivated. Logging out now.');
-      logout();
+      await logout();
+      navigate('/login', { replace: true });
     } catch (err) {
       alert(err.message || 'Deactivation failed');
     }

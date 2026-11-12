@@ -1,35 +1,33 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { authService } from '../services/AuthService';
 import { RolePolicyFactory } from '../policies/RolePolicy';
+import { firebaseAuthGateway } from '../config/firebase';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [account, setAccount] = useState(() => authService.getStoredAccount());
   const [token, setToken] = useState(() => authService.getStoredToken());
-  const [loading, setLoading] = useState(() => {
-    const storedToken = authService.getStoredToken();
-    const storedAccount = authService.getStoredAccount();
-    return !!storedToken && !storedAccount;
-  });
+  const [loading, setLoading] = useState(() => !authService.getStoredAccount());
 
   useEffect(() => {
     const verifySession = async () => {
-      const storedToken = authService.getStoredToken();
-      if (storedToken) {
-        try {
-          const freshAccount = await authService.getCurrentUser();
-          setAccount(freshAccount);
-        } catch (err) {
+      try {
+        const freshAccount = await authService.getCurrentUser();
+        setAccount(freshAccount);
+        setToken(freshAccount.token);
+      } catch (err) {
+        if (err.status === 401 || err.status === 403 || err.status === 404 || err.code === 'AUTH_ERROR') {
+          await firebaseAuthGateway.signOut().catch(() => {});
+          authService.clearSession();
+          setAccount(null);
+          setToken(null);
+        } else {
           console.warn('Session verification notice:', err.message);
-          if (err.status === 401) {
-            authService.logout();
-            setAccount(null);
-            setToken(null);
-          }
         }
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     verifySession();
@@ -50,7 +48,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const refreshAccount = async () => {
-    const freshAccount = await authService.getCurrentUser();
+    const freshAccount = await authService.getCurrentUser(true);
     setAccount(freshAccount);
     setToken(freshAccount.token || authService.getStoredToken());
     return freshAccount;

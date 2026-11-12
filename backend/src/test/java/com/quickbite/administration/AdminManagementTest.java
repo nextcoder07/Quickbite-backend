@@ -23,6 +23,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
@@ -42,6 +44,10 @@ class AdminManagementTest {
     @Autowired private AdminRepository adminRepository;
     @Autowired private UserRepository userRepository;
 
+    private CurrentAccountPrincipal firebasePrincipal(String uid, String email) {
+        return new CurrentAccountPrincipal(null, uid, email, null, null, null, null);
+    }
+
     @Test
     @DisplayName("Suspending an admin requires valid env key; approving pending admin does not")
     void testAdminApprovalAndKeyGatedSuspension() {
@@ -60,11 +66,13 @@ class AdminManagementTest {
         );
 
         // 1. New signup asks for ADMIN without env key -> PENDING
-        AuthResponse pendingResp = authService.registerProfile(new SignupRequest(
-                null, "pending.admin@quickbite.com", "Pending Admin", null,
-                AccountTypeSnapshot.ADMIN, "Password@123", null, null, null, null, null, null,
-                null, "Need admin access for operations"
-        ));
+        AuthResponse pendingResp = authService.registerFirebasePrincipal(
+                firebasePrincipal("uid-pending-admin-test", "pending.admin@quickbite.com"),
+                new SignupRequest(
+                        null, "pending.admin@quickbite.com", "Pending Admin", null,
+                        AccountTypeSnapshot.ADMIN, null, null, null, null, null, null, null,
+                        null, "Need admin access for operations"
+                ));
         assertEquals(VerificationStatus.PENDING, pendingResp.verificationStatus());
 
         // Pending admin cannot perform admin operations
@@ -111,11 +119,13 @@ class AdminManagementTest {
                 VerificationStatus.APPROVED
         );
 
-        AuthResponse buyerResp = authService.registerProfile(new SignupRequest(
-                null, "buyer.to.admin@quickbite.com", "Promoted Buyer", "9999999999",
-                AccountTypeSnapshot.BUYER, "Password@123", null, null, null, null, null, null,
-                null, null
-        ));
+        AuthResponse buyerResp = authService.registerFirebasePrincipal(
+                firebasePrincipal("uid-buyer-to-admin-test", "buyer.to.admin@quickbite.com"),
+                new SignupRequest(
+                        null, "buyer.to.admin@quickbite.com", "Promoted Buyer", "9999999999",
+                        AccountTypeSnapshot.BUYER, null, null, null, null, null, null, null,
+                        null, null
+                ));
         assertEquals(AccountTypeSnapshot.BUYER, buyerResp.accountType());
 
         CurrentAccountPrincipal buyerPrincipal = new CurrentAccountPrincipal(
@@ -136,6 +146,58 @@ class AdminManagementTest {
         assertEquals(AccountTypeSnapshot.ADMIN, resolved.accountType());
         assertEquals(VerificationStatus.APPROVED, resolved.verificationStatus());
         assertTrue(userRepository.existsByIdentityId(identity.getId()));
+    }
+
+    @Test
+    @DisplayName("Login requires no key; verified accounts open approved while pending accounts remain pending until verified")
+    void loginRequiresNoKeyForVerifiedAndKeepsPendingAccountsGated() {
+        AuthResponse seededAdminLogin = authService.loginWithFirebasePrincipal(
+                firebasePrincipal("uid-admin-01", "admin@quickbite.com"));
+        assertEquals(AccountTypeSnapshot.ADMIN, seededAdminLogin.accountType());
+        assertEquals(VerificationStatus.APPROVED, seededAdminLogin.verificationStatus());
+        assertEquals(AccountStatus.ACTIVE, seededAdminLogin.status());
+
+        AuthResponse pendingAdmin = authService.registerFirebasePrincipal(
+                firebasePrincipal("uid-pending-login-admin", "pending.login.admin@quickbite.com"),
+                new SignupRequest(
+                        null, "pending.login.admin@quickbite.com", "Pending Login Admin", "9888877777",
+                        AccountTypeSnapshot.ADMIN, null, null, null, null, null, null, null,
+                        null, "Awaiting verification"
+                ));
+        assertEquals(VerificationStatus.PENDING, pendingAdmin.verificationStatus());
+
+        AuthResponse pendingLogin = authService.loginWithFirebasePrincipal(
+                firebasePrincipal("uid-pending-login-admin", "pending.login.admin@quickbite.com"));
+        assertEquals(AccountTypeSnapshot.ADMIN, pendingLogin.accountType());
+        assertEquals(VerificationStatus.PENDING, pendingLogin.verificationStatus());
+        assertEquals(AccountStatus.ACTIVE, pendingLogin.status());
+    }
+
+    @Test
+    @DisplayName("Pending Admin can verify from waiting gate via AccountService.verifyAdminWithKey")
+    void verifyAdminWithKeyApprovesPendingAdminAndRejectsInvalidKey() {
+        AuthResponse pendingAdmin = authService.registerFirebasePrincipal(
+                firebasePrincipal("uid-gate-key-admin", "gate.key.admin@quickbite.com"),
+                new SignupRequest(
+                        null, "gate.key.admin@quickbite.com", "Gate Key Admin", "9777766666",
+                        AccountTypeSnapshot.ADMIN, null, null, null, null, null, null, null,
+                        null, "Waiting at gate"
+                ));
+        CurrentAccountPrincipal pendingPrincipal = new CurrentAccountPrincipal(
+                pendingAdmin.identityId(), pendingAdmin.firebaseUid(), pendingAdmin.email(),
+                AccountTypeSnapshot.ADMIN, pendingAdmin.profileId(), AccountStatus.ACTIVE, VerificationStatus.PENDING
+        );
+
+        assertThrows(ForbiddenException.class, () ->
+                accountService.verifyAdminWithKey(pendingPrincipal, "bad-key")
+        );
+
+        Map<String, String> result = accountService.verifyAdminWithKey(pendingPrincipal, "TestAdminEnvKey@999");
+        assertEquals("APPROVED", result.get("verificationStatus"));
+
+        AccountIdentity identity = identityRepository.findById(pendingAdmin.identityId()).orElseThrow();
+        AuthResponse refreshed = authService.resolveAuthResponse(identity);
+        assertEquals(VerificationStatus.APPROVED, refreshed.verificationStatus());
     }
 }
 

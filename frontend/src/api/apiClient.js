@@ -1,9 +1,35 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').trim();
+if (!API_BASE_URL) {
+  throw new Error('Missing VITE_API_BASE_URL configuration. Check frontend/.env files.');
+}
 
 class ApiClient {
   constructor() {
     this.cache = new Map();
     this.defaultTtl = 60 * 1000; // 60 seconds instant cache
+    this.tokenProvider = null;
+  }
+
+  setTokenProvider(providerFn) {
+    this.tokenProvider = providerFn;
+  }
+
+  async resolveAuthToken(explicitHeaders = {}) {
+    if (explicitHeaders['Authorization'] || explicitHeaders['authorization']) {
+      return null;
+    }
+    if (this.tokenProvider) {
+      try {
+        const freshToken = await this.tokenProvider();
+        if (freshToken) {
+          localStorage.setItem('qb_token', freshToken);
+          return freshToken;
+        }
+      } catch (err) {
+        console.warn('Could not refresh Firebase ID token:', err?.message || err);
+      }
+    }
+    return localStorage.getItem('qb_token');
   }
 
   clearCache() {
@@ -48,13 +74,13 @@ class ApiClient {
       ...options.headers,
     };
 
-    const token = localStorage.getItem('qb_token');
+    const token = await this.resolveAuthToken(headers);
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    // Increased timeout to 15s to handle Render latency gracefully
-    const timeoutMs = options.timeout || 15000;
+    // Increased timeout to 45s to handle Render free-tier cold starts gracefully
+    const timeoutMs = options.timeout || 45000;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -75,7 +101,13 @@ class ApiClient {
       const data = await response.json().catch(() => null);
 
       if (!response.ok) {
-        const errorMessage = data?.message || (data?.error ? `${data.error}: ${data.message || ''}` : `HTTP Error ${response.status}`);
+        const validationDetails = data?.validationErrors
+          ? Object.values(data.validationErrors).filter(Boolean).join('. ')
+          : '';
+        const errorMessage =
+          validationDetails ||
+          data?.message ||
+          (data?.error ? `${data.error}: ${data.message || ''}` : `HTTP Error ${response.status}`);
         const error = new Error(errorMessage);
         error.status = response.status;
         error.data = data;
@@ -89,6 +121,11 @@ class ApiClient {
         const timeoutError = new Error(`Request to ${endpoint} timed out. The server may be waking up.`);
         timeoutError.isTimeout = true;
         throw timeoutError;
+      }
+      if (err instanceof TypeError && !err.status) {
+        const netError = new Error(`Cannot reach QuickBite backend at ${API_BASE_URL}. Please ensure the backend server is running.`);
+        netError.isNetworkError = true;
+        throw netError;
       }
       if (err.status === 401 && !endpoint.includes('/auth/')) {
         console.warn('Authentication expired or unauthorized');
@@ -160,7 +197,7 @@ class ApiClient {
     this.clearCache();
     const url = `${API_BASE_URL}${endpoint}`;
     const customHeaders = { ...headers };
-    const token = localStorage.getItem('qb_token');
+    const token = await this.resolveAuthToken(customHeaders);
     if (token) {
       customHeaders['Authorization'] = `Bearer ${token}`;
     }

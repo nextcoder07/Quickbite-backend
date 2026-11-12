@@ -6,6 +6,7 @@ import { shopOwnerService } from '../../services/ShopOwnerService';
 import { deliveryService } from '../../services/DeliveryService';
 import { StatusBadge } from '../../components/StatusBadge';
 import { LocationPicker } from '../../components/LocationPicker';
+import { PasswordInput } from '../../components/PasswordInput';
 import {
   ShieldAlert,
   Store,
@@ -16,6 +17,7 @@ import {
   CheckCircle2,
   Trash2,
   Clock,
+  KeyRound,
 } from 'lucide-react';
 
 /**
@@ -40,6 +42,8 @@ export const VerificationGate = () => {
   const [feedback, setFeedback] = useState('');
   const [adminNote, setAdminNote] = useState('');
   const [requestingAdmin, setRequestingAdmin] = useState(false);
+  const [adminVerifyKey, setAdminVerifyKey] = useState('');
+  const [verifyingKey, setVerifyingKey] = useState(false);
 
   // Shop creation form (for newly registered shop owners without a shop)
   const [shopName, setShopName] = useState('');
@@ -60,8 +64,13 @@ export const VerificationGate = () => {
     setError('');
     try {
       const [reqs, fetchedShop] = await Promise.all([
-        deliveryService.getMyDeletionRequests().catch(() => []),
-        isShopOwner ? shopOwnerService.getMyShop().catch(() => null) : Promise.resolve(null),
+        deliveryService.getMyDeletionRequests({ skipCache: true }),
+        isShopOwner
+          ? shopOwnerService.getMyShop({ skipCache: true }).catch((err) => {
+              if (err?.status === 404) return null;
+              throw err;
+            })
+          : Promise.resolve(null),
       ]);
       setDeletionRequests(Array.isArray(reqs) ? reqs : []);
       setShop(fetchedShop);
@@ -74,7 +83,7 @@ export const VerificationGate = () => {
 
   useEffect(() => {
     loadGateData();
-  }, [account?.accountType]);
+  }, [account?.identityId, account?.accountType]);
 
   const handleRefreshVerification = async () => {
     setChecking(true);
@@ -162,6 +171,29 @@ export const VerificationGate = () => {
       setError(err.message || 'Could not submit admin permission request');
     } finally {
       setRequestingAdmin(false);
+    }
+  };
+
+  const handleVerifyAdminWithKey = async (e) => {
+    e.preventDefault();
+    if (!adminVerifyKey.trim()) {
+      setError('Please enter the Admin Security Key.');
+      return;
+    }
+
+    setVerifyingKey(true);
+    setError('');
+    setFeedback('');
+    try {
+      await api.post('/account/verify-admin-key', { adminKey: adminVerifyKey.trim() });
+      setAdminVerifyKey('');
+      const updated = await refreshAccount();
+      setFeedback('Admin account verified via Security Key! Redirecting...');
+      navigate(policy.getDefaultRoute(updated), { replace: true });
+    } catch (err) {
+      setError(err.message || 'Invalid Admin Security Key.');
+    } finally {
+      setVerifyingKey(false);
     }
   };
 
@@ -389,24 +421,51 @@ export const VerificationGate = () => {
           )}
 
           {!verified && account?.status !== 'SUSPENDED' && (
-            <form onSubmit={handleRequestAdminApproval} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <input
-                type="text"
-                className="form-input"
-                style={{ flex: '1 1 280px' }}
-                placeholder="Optional note explaining why you need Admin permission..."
-                value={adminNote}
-                onChange={(e) => setAdminNote(e.target.value)}
-              />
-              <button type="submit" className="btn btn-primary" disabled={requestingAdmin}>
-                {requestingAdmin ? 'Submitting...' : 'Ask Admins for Permission'}
-              </button>
-            </form>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ padding: '14px', borderRadius: '10px', backgroundColor: 'rgba(15, 23, 42, 0.45)', border: '1px solid rgba(148, 163, 184, 0.16)' }}>
+                <div style={{ fontWeight: 600, fontSize: '0.92rem', marginBottom: '8px' }}>
+                  Option 1: Wait for Admin Verification
+                </div>
+                <form onSubmit={handleRequestAdminApproval} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    className="form-input"
+                    style={{ flex: '1 1 280px' }}
+                    placeholder="Optional note explaining why you need Admin permission..."
+                    value={adminNote}
+                    onChange={(e) => setAdminNote(e.target.value)}
+                  />
+                  <button type="submit" className="btn btn-primary" disabled={requestingAdmin}>
+                    {requestingAdmin ? 'Submitting...' : 'Ask Admins for Permission'}
+                  </button>
+                </form>
+              </div>
+
+              <div style={{ padding: '14px', borderRadius: '10px', backgroundColor: 'rgba(15, 23, 42, 0.45)', border: '1px solid rgba(168, 85, 247, 0.25)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '0.92rem', marginBottom: '8px', color: '#e9d5ff' }}>
+                  <KeyRound size={16} />
+                  <span>Option 2: Verify Now with Admin Security Key</span>
+                </div>
+                <form onSubmit={handleVerifyAdminWithKey} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <PasswordInput
+                    name="admin-verify-key"
+                    autoComplete="off"
+                    style={{ flex: '1 1 280px' }}
+                    placeholder="Enter ADMIN_SIGNUP_KEY to verify immediately..."
+                    value={adminVerifyKey}
+                    onChange={(e) => setAdminVerifyKey(e.target.value)}
+                  />
+                  <button type="submit" className="btn btn-secondary" disabled={verifyingKey}>
+                    {verifyingKey ? 'Verifying...' : 'Verify with Key'}
+                  </button>
+                </form>
+              </div>
+            </div>
           )}
         </div>
       ) : null}
 
-      {!isAdmin && (
+      {!isAdmin && (verified || shop?.approvalStatus === 'REJECTED' || account?.verificationStatus === 'REJECTED') && (
       <div className="glass-panel" style={{ padding: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
           <Trash2 size={18} color="#f87171" />

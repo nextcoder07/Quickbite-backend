@@ -11,6 +11,7 @@ import com.quickbite.audit.AuditService;
 import com.quickbite.buyer.User;
 import com.quickbite.buyer.UserRepository;
 import com.quickbite.common.enums.AccountStatus;
+import com.quickbite.common.enums.AccountTypeSnapshot;
 import com.quickbite.common.enums.DeletionRequestStatus;
 import com.quickbite.common.enums.DeliveryStatus;
 import com.quickbite.common.enums.DisputeStatus;
@@ -26,6 +27,7 @@ import com.quickbite.delivery.DeliveryPartner;
 import com.quickbite.delivery.DeliveryPartnerRepository;
 import com.quickbite.dispute.DisputeRepository;
 import com.quickbite.identity.AccountIdentity;
+import com.quickbite.identity.FirebaseAccountSyncService;
 import com.quickbite.ordering.CustomerOrder;
 import com.quickbite.ordering.CustomerOrderRepository;
 import com.quickbite.security.CurrentAccountPrincipal;
@@ -58,6 +60,7 @@ public class AdminService {
     private final AdminRoleRequestRepository adminRoleRequestRepository;
     private final ShopOwnerRepository shopOwnerRepository;
     private final AdminKeyValidator adminKeyValidator;
+    private final FirebaseAccountSyncService firebaseSyncService;
 
     @Autowired
     public AdminService(
@@ -73,7 +76,8 @@ public class AdminService {
             AuditService auditService,
             AdminRoleRequestRepository adminRoleRequestRepository,
             ShopOwnerRepository shopOwnerRepository,
-            AdminKeyValidator adminKeyValidator) {
+            AdminKeyValidator adminKeyValidator,
+            FirebaseAccountSyncService firebaseSyncService) {
         this.userRepository = userRepository;
         this.deliveryPartnerRepository = deliveryPartnerRepository;
         this.deliveryAssignmentRepository = deliveryAssignmentRepository;
@@ -87,6 +91,7 @@ public class AdminService {
         this.adminRoleRequestRepository = adminRoleRequestRepository;
         this.shopOwnerRepository = shopOwnerRepository;
         this.adminKeyValidator = adminKeyValidator;
+        this.firebaseSyncService = firebaseSyncService != null ? firebaseSyncService : new FirebaseAccountSyncService(false);
     }
 
     @Transactional(readOnly = true)
@@ -160,6 +165,18 @@ public class AdminService {
         }
 
         Shop saved = shopRepository.save(shop);
+        VerificationStatus shopVerification = switch (saved.getApprovalStatus()) {
+            case APPROVED -> VerificationStatus.APPROVED;
+            case REJECTED -> VerificationStatus.REJECTED;
+            case SUSPENDED -> VerificationStatus.SUSPENDED;
+            case PENDING -> VerificationStatus.PENDING;
+        };
+        firebaseSyncService.syncAccountStatusSafely(
+                saved.getOwner().getIdentity().getFirebaseUid(),
+                AccountTypeSnapshot.SHOP_OWNER,
+                shopVerification,
+                saved.getOwner().getAccountStatus()
+        );
         auditService.record(admin.getIdentity(), "SHOP_STATUS_CHANGED", "SHOP", String.valueOf(shop.getId()),
                 Map.of("newStatus", newStatus.name()));
 
@@ -194,6 +211,12 @@ public class AdminService {
                 .orElseThrow(() -> new ResourceNotFoundException("Shop not found with id: " + shopId));
         shop.deactivate();
         Shop saved = shopRepository.save(shop);
+        firebaseSyncService.syncAccountStatusSafely(
+                saved.getOwner().getIdentity().getFirebaseUid(),
+                AccountTypeSnapshot.SHOP_OWNER,
+                VerificationStatus.SUSPENDED,
+                saved.getOwner().getAccountStatus()
+        );
         auditService.record(admin.getIdentity(), "SHOP_REMOVED_BY_ADMIN", "SHOP", String.valueOf(shop.getId()),
                 Map.of("shopName", shop.getName()));
         return ShopResponse.from(saved);
@@ -215,6 +238,12 @@ public class AdminService {
         }
 
         DeliveryPartner saved = deliveryPartnerRepository.save(partner);
+        firebaseSyncService.syncAccountStatusSafely(
+                saved.getIdentity().getFirebaseUid(),
+                AccountTypeSnapshot.DELIVERY_PARTNER,
+                saved.getVerificationStatus(),
+                saved.getAccountStatus()
+        );
         auditService.record(admin.getIdentity(), "DELIVERY_PARTNER_STATUS_CHANGED", "DELIVERY_PARTNER",
                 String.valueOf(saved.getId()), Map.of("newStatus", normalized, "verificationStatus", saved.getVerificationStatus().name()));
 
@@ -275,6 +304,12 @@ public class AdminService {
         }
 
         Admin saved = adminRepository.save(targetAdmin);
+        firebaseSyncService.syncAccountStatusSafely(
+                saved.getIdentity().getFirebaseUid(),
+                AccountTypeSnapshot.ADMIN,
+                saved.getVerificationStatus(),
+                saved.getAccountStatus()
+        );
         auditService.record(actingAdmin.getIdentity(), "ADMIN_STATUS_CHANGED", "ADMIN",
                 String.valueOf(saved.getId()),
                 Map.of("newStatus", normalized, "verificationStatus", saved.getVerificationStatus().name()));
@@ -310,6 +345,12 @@ public class AdminService {
                 promoted.approveVerification();
             }
             adminRepository.save(promoted);
+            firebaseSyncService.syncAccountStatusSafely(
+                    identity.getFirebaseUid(),
+                    AccountTypeSnapshot.ADMIN,
+                    promoted.getVerificationStatus(),
+                    promoted.getAccountStatus()
+            );
             req.approve(actingAdmin, note);
             auditService.record(actingAdmin.getIdentity(), "ADMIN_ROLE_PROMOTION_APPROVED", "ADMIN_ROLE_REQUEST",
                     String.valueOf(req.getId()), Map.of("targetEmail", identity.getEmail()));

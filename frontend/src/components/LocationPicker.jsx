@@ -15,6 +15,8 @@ export const LocationPicker = ({
   required = false,
   hint = 'Enter any street address or city, and optionally pin exact GPS coordinates.',
   showCoordinates = true,
+  name = 'street-address',
+  autoComplete = 'street-address',
 }) => {
   const [locating, setLocating] = useState(false);
   const [geoError, setGeoError] = useState('');
@@ -100,6 +102,8 @@ export const LocationPicker = ({
 
       <input
         type="text"
+        name={name}
+        autoComplete={autoComplete}
         className="form-input"
         placeholder={placeholder}
         value={address || ''}

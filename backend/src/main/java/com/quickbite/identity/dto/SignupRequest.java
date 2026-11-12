@@ -8,7 +8,6 @@ import jakarta.validation.constraints.NotNull;
 public record SignupRequest(
         String firebaseUid,
 
-        @NotBlank(message = "email is required")
         @Email(message = "Invalid email format")
         String email,
 

@@ -71,8 +71,16 @@ public class CurrentAccountPrincipal implements UserDetails {
         if (accountType == null) {
             return Collections.emptyList();
         }
-        if (accountType == AccountTypeSnapshot.ADMIN
+        if (accountType == AccountTypeSnapshot.BUYER) {
+            return status == AccountStatus.ACTIVE
+                    ? List.of(new SimpleGrantedAuthority("ROLE_BUYER"))
+                    : Collections.emptyList();
+        }
+        if ((accountType == AccountTypeSnapshot.ADMIN || accountType == AccountTypeSnapshot.DELIVERY_PARTNER)
                 && (status != AccountStatus.ACTIVE || verificationStatus != VerificationStatus.APPROVED)) {
+            return Collections.emptyList();
+        }
+        if (accountType == AccountTypeSnapshot.SHOP_OWNER && status != AccountStatus.ACTIVE) {
             return Collections.emptyList();
         }
         return List.of(new SimpleGrantedAuthority("ROLE_" + accountType.name()));

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { adminService } from '../../services/AdminService';
 import { useAuth } from '../../context/AuthContext';
 import { StatusBadge } from '../../components/StatusBadge';
+import { PasswordInput } from '../../components/PasswordInput';
 import { Shield, Check, X, KeyRound, Ban, RotateCcw, UserPlus } from 'lucide-react';
 
 export const AdminManagement = () => {
@@ -119,15 +120,14 @@ export const AdminManagement = () => {
             }}
             style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}
           >
-            <input
-              type="password"
-              className="form-input"
+            <PasswordInput
+              name="admin-security-key"
+              autoComplete="off"
               style={{ flex: '1 1 260px' }}
               placeholder="Enter ADMIN_SIGNUP_KEY..."
               value={securityKeyInput}
               onChange={(e) => setSecurityKeyInput(e.target.value)}
               required
-              autoFocus
             />
             <button
               type="submit"

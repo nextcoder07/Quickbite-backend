@@ -11,7 +11,6 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.util.UUID;
 
 @Component
 public class RazorpayGateway implements PaymentGateway {
@@ -23,48 +22,40 @@ public class RazorpayGateway implements PaymentGateway {
     private RazorpayClient client;
 
     public RazorpayGateway(
-            @Value("${quickbite.razorpay.key-id:rzp_test_samplekey123}") String keyId,
-            @Value("${quickbite.razorpay.key-secret:sample_secret_key_456}") String keySecret) {
-        this.keyId = keyId;
-        this.keySecret = keySecret;
-        try {
-            if (keyId != null && !keyId.startsWith("rzp_test_sample") && keySecret != null && !keySecret.startsWith("sample_secret")) {
-                this.client = new RazorpayClient(keyId, keySecret);
+            @Value("${quickbite.razorpay.key-id:}") String keyId,
+            @Value("${quickbite.razorpay.key-secret:}") String keySecret) {
+        this.keyId = keyId != null ? keyId.trim() : "";
+        this.keySecret = keySecret != null ? keySecret.trim() : "";
+        if (!this.keyId.isEmpty() && !this.keySecret.isEmpty()) {
+            try {
+                this.client = new RazorpayClient(this.keyId, this.keySecret);
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to initialize Razorpay client: " + e.getMessage(), e);
             }
-        } catch (Exception e) {
-            log.warn("Could not initialize real Razorpay client (running in test mode): {}", e.getMessage());
         }
     }
 
     @Override
     public GatewayOrder createOrder(BigDecimal amount, String currency, String receipt) {
-        if (client != null) {
-            try {
-                JSONObject options = new JSONObject();
-                options.put("amount", amount.multiply(BigDecimal.valueOf(100)).intValue()); // in paise
-                options.put("currency", currency != null ? currency : "INR");
-                options.put("receipt", receipt);
-                com.razorpay.Order order = client.orders.create(options);
-                return new GatewayOrder(order.get("id"), amount, currency);
-            } catch (Exception e) {
-                log.warn("Razorpay live call failed, using test order: {}", e.getMessage());
-            }
+        if (client == null) {
+            throw new IllegalStateException("Razorpay payment gateway is not configured (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET missing).");
         }
-
-        // Test mode order generator
-        String testOrderId = "order_test_" + UUID.randomUUID().toString().replace("-", "").substring(0, 14);
-        return new GatewayOrder(testOrderId, amount, currency);
+        try {
+            JSONObject options = new JSONObject();
+            options.put("amount", amount.multiply(BigDecimal.valueOf(100)).intValue()); // in paise
+            options.put("currency", currency != null ? currency : "INR");
+            options.put("receipt", receipt);
+            com.razorpay.Order order = client.orders.create(options);
+            return new GatewayOrder(order.get("id"), amount, currency);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to create Razorpay order: " + e.getMessage(), e);
+        }
     }
 
     @Override
     public boolean verifyPaymentSignature(String orderId, String paymentId, String signature) {
-        if (signature == null || signature.isBlank()) {
+        if (signature == null || signature.isBlank() || keySecret.isEmpty()) {
             return false;
-        }
-
-        // Allow test-mode signature bypass for local frontend mock testing
-        if ("test_signature".equalsIgnoreCase(signature) || signature.startsWith("sig_test_")) {
-            return true;
         }
 
         try {
@@ -89,22 +80,19 @@ public class RazorpayGateway implements PaymentGateway {
 
     @Override
     public GatewayRefund processRefund(String paymentId, BigDecimal amount, String reason) {
-        if (client != null && !paymentId.startsWith("pay_test_")) {
-            try {
-                JSONObject refundRequest = new JSONObject();
-                refundRequest.put("amount", amount.multiply(BigDecimal.valueOf(100)).intValue());
-                refundRequest.put("notes", new JSONObject().put("reason", reason));
-                com.razorpay.Refund refund = client.payments.refund(paymentId, refundRequest);
-                return new GatewayRefund(true, refund.get("id"), "Refund processed successfully");
-            } catch (Exception e) {
-                log.warn("Razorpay live refund failed: {}", e.getMessage());
-                return new GatewayRefund(false, null, e.getMessage());
-            }
+        if (client == null) {
+            throw new IllegalStateException("Razorpay payment gateway is not configured (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET missing).");
         }
-
-        // Test mode refund generator
-        String testRefundId = "rfnd_test_" + UUID.randomUUID().toString().replace("-", "").substring(0, 14);
-        return new GatewayRefund(true, testRefundId, "Test refund processed successfully");
+        try {
+            JSONObject refundRequest = new JSONObject();
+            refundRequest.put("amount", amount.multiply(BigDecimal.valueOf(100)).intValue());
+            refundRequest.put("notes", new JSONObject().put("reason", reason));
+            com.razorpay.Refund refund = client.payments.refund(paymentId, refundRequest);
+            return new GatewayRefund(true, refund.get("id"), "Refund processed successfully");
+        } catch (Exception e) {
+            log.warn("Razorpay live refund failed: {}", e.getMessage());
+            return new GatewayRefund(false, null, e.getMessage());
+        }
     }
 
     public String getKeyId() {

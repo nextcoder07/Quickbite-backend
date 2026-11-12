@@ -64,4 +64,13 @@ public class AccountController {
             @AuthenticationPrincipal CurrentAccountPrincipal principal) {
         return ResponseEntity.ok(accountService.getMyAdminRequests(principal));
     }
+
+    @PostMapping("/verify-admin-key")
+    @Operation(summary = "Verify pending Admin with env key", description = "Allows a pending Admin to verify immediately by entering the ADMIN_SIGNUP_KEY")
+    public ResponseEntity<Map<String, String>> verifyAdminWithKey(
+            @AuthenticationPrincipal CurrentAccountPrincipal principal,
+            @RequestBody Map<String, String> body) {
+        String adminKey = body != null ? body.get("adminKey") : null;
+        return ResponseEntity.ok(accountService.verifyAdminWithKey(principal, adminKey));
+    }
 }

@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { Sparkles, ArrowRight, Lock } from 'lucide-react';
 import { RolePolicyFactory } from '../../policies/RolePolicy';
+import { PasswordInput } from '../../components/PasswordInput';
 
 export const Login = () => {
   const { loginWithPassword } = useAuth();
@@ -42,7 +43,7 @@ export const Login = () => {
         background: 'radial-gradient(circle at top right, #1f1a24 0%, #0c0d12 60%)',
       }}
     >
-      <div className="glass-panel" style={{ width: '100%', maxWidth: '460px', padding: '36px' }}>
+      <div className="glass-panel" style={{ width: '100%', maxWidth: '470px', padding: '36px' }}>
         <div style={{ textAlign: 'center', marginBottom: '26px' }}>
           <div
             style={{
@@ -97,12 +98,11 @@ export const Login = () => {
             <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Lock size={13} /> Password
             </label>
-            <input
-              type="password"
-              className="form-input"
+            <PasswordInput
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
               required
             />
           </div>

@@ -82,6 +82,13 @@ public class AccountIdentity {
         return updatedAt;
     }
 
+    public void updateFirebaseUid(String newFirebaseUid) {
+        if (newFirebaseUid != null && !newFirebaseUid.isBlank() && !newFirebaseUid.equals(this.firebaseUid)) {
+            this.firebaseUid = newFirebaseUid.trim();
+            this.updatedAt = Instant.now();
+        }
+    }
+
     public void updateEmail(String newEmail) {
         if (newEmail != null && !newEmail.isBlank()) {
             this.email = newEmail.toLowerCase().trim();

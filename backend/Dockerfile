@@ -3,7 +3,7 @@ FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /app
 
 # Copy project definition and source code
-COPY pom.xml settings.xml* ./
+COPY pom.xml ./
 COPY src ./src
 
 # Package the application skipping unit tests for fast builds
@@ -20,4 +20,4 @@ COPY --from=build /app/target/quickbite-backend-1.0.0.jar app.jar
 EXPOSE 8080
 
 # Run the Spring Boot application
-ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]

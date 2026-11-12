@@ -8,61 +8,100 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Base64;
 
 @Configuration
 public class FirebaseConfig {
 
     private static final Logger log = LoggerFactory.getLogger(FirebaseConfig.class);
 
-    @Value("${quickbite.firebase.enabled:false}")
+    private final Environment environment;
+
+    @Value("${quickbite.firebase.enabled:true}")
     private boolean firebaseEnabled;
 
     @Value("${quickbite.firebase.config-path:firebase-adminsdk.json}")
     private String configPath;
 
-    @Value("${quickbite.firebase.project-id:quickbite-campus}")
+    @Value("${quickbite.firebase.service-account-json:}")
+    private String serviceAccountJson;
+
+    @Value("${quickbite.firebase.project-id:}")
     private String projectId;
+
+    public FirebaseConfig(Environment environment) {
+        this.environment = environment;
+    }
 
     @PostConstruct
     public void initFirebase() {
         if (!firebaseEnabled) {
-            log.info("Firebase Auth verification is running in dev/offline mode. (Set quickbite.firebase.enabled=true with service account json to enable cloud verification)");
+            boolean isTestProfile = Arrays.asList(environment.getActiveProfiles()).contains("test");
+            if (!isTestProfile) {
+                throw new IllegalStateException(
+                        "quickbite.firebase.enabled=false is only allowed under the 'test' Spring profile.");
+            }
+            log.info("Firebase Admin SDK disabled (test profile).");
             return;
+        }
+        if (projectId == null || projectId.isBlank()) {
+            throw new IllegalStateException(
+                    "FIREBASE_PROJECT_ID is required when Firebase authentication is enabled.");
         }
 
         try {
             if (FirebaseApp.getApps().isEmpty()) {
-                InputStream serviceAccount = null;
-                File file = new File(configPath);
-                if (!file.exists()) {
-                    file = new File("backend", configPath);
-                }
-                if (!file.exists()) {
-                    file = new File("..", configPath);
-                }
-                if (file.exists()) {
-                    serviceAccount = new FileInputStream(file);
-                } else {
-                    serviceAccount = getClass().getClassLoader().getResourceAsStream(configPath);
+                InputStream serviceAccount = openServiceAccountStream();
+                if (serviceAccount == null) {
+                    throw new IllegalStateException(
+                            "Firebase Admin SDK config file not found at '" + configPath
+                                    + "'. Cannot start without Firebase authentication.");
                 }
 
-                if (serviceAccount != null) {
+                try (InputStream stream = serviceAccount) {
                     FirebaseOptions options = FirebaseOptions.builder()
-                            .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                            .setCredentials(GoogleCredentials.fromStream(stream))
                             .setProjectId(projectId)
                             .build();
                     FirebaseApp.initializeApp(options);
-                    log.info("Firebase Admin SDK initialized successfully for project: {}", projectId);
-                } else {
-                    log.warn("Firebase config file not found at: {}. Running in fallback dev mode.", configPath);
                 }
+                log.info("Firebase Admin SDK initialized successfully for project: {}", projectId);
             }
+        } catch (IllegalStateException ex) {
+            throw ex;
         } catch (Exception e) {
-            log.error("Could not initialize Firebase Admin SDK: {}. Using fallback dev mode.", e.getMessage());
+            throw new IllegalStateException("Could not initialize Firebase Admin SDK: " + e.getMessage(), e);
         }
+    }
+
+    private InputStream openServiceAccountStream() throws Exception {
+        if (serviceAccountJson != null && !serviceAccountJson.isBlank()) {
+            String trimmed = serviceAccountJson.trim();
+            if (trimmed.startsWith("{")) {
+                return new ByteArrayInputStream(trimmed.getBytes(StandardCharsets.UTF_8));
+            }
+            byte[] decoded = Base64.getDecoder().decode(trimmed);
+            return new ByteArrayInputStream(decoded);
+        }
+
+        File file = new File(configPath);
+        if (!file.exists()) {
+            file = new File("backend", configPath);
+        }
+        if (!file.exists()) {
+            file = new File("..", configPath);
+        }
+        if (file.exists()) {
+            return new FileInputStream(file);
+        }
+        return getClass().getClassLoader().getResourceAsStream(configPath);
     }
 }

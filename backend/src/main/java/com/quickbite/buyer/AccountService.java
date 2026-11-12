@@ -1,6 +1,7 @@
 package com.quickbite.buyer;
 
 import com.quickbite.administration.Admin;
+import com.quickbite.administration.AdminKeyValidator;
 import com.quickbite.administration.AdminRepository;
 import com.quickbite.administration.AdminRoleRequest;
 import com.quickbite.administration.AdminRoleRequestRepository;
@@ -17,6 +18,7 @@ import com.quickbite.delivery.DeliveryPartner;
 import com.quickbite.delivery.DeliveryPartnerRepository;
 import com.quickbite.identity.AccountIdentity;
 import com.quickbite.identity.AccountIdentityRepository;
+import com.quickbite.identity.FirebaseAccountSyncService;
 import com.quickbite.security.CurrentAccountPrincipal;
 import com.quickbite.shop.ShopOwner;
 import com.quickbite.shop.ShopOwnerRepository;
@@ -37,6 +39,8 @@ public class AccountService {
     private final AdminRoleRequestRepository adminRoleRequestRepository;
     private final DeliveryPartnerRepository deliveryPartnerRepository;
     private final ShopOwnerRepository shopOwnerRepository;
+    private final AdminKeyValidator adminKeyValidator;
+    private final FirebaseAccountSyncService firebaseSyncService;
 
     @Autowired
     public AccountService(
@@ -46,7 +50,9 @@ public class AccountService {
             AdminRepository adminRepository,
             AdminRoleRequestRepository adminRoleRequestRepository,
             DeliveryPartnerRepository deliveryPartnerRepository,
-            ShopOwnerRepository shopOwnerRepository) {
+            ShopOwnerRepository shopOwnerRepository,
+            AdminKeyValidator adminKeyValidator,
+            FirebaseAccountSyncService firebaseSyncService) {
         this.userRepository = userRepository;
         this.auditService = auditService;
         this.identityRepository = identityRepository;
@@ -54,6 +60,8 @@ public class AccountService {
         this.adminRoleRequestRepository = adminRoleRequestRepository;
         this.deliveryPartnerRepository = deliveryPartnerRepository;
         this.shopOwnerRepository = shopOwnerRepository;
+        this.adminKeyValidator = adminKeyValidator;
+        this.firebaseSyncService = firebaseSyncService != null ? firebaseSyncService : new FirebaseAccountSyncService(false);
     }
 
     @Transactional
@@ -83,6 +91,12 @@ public class AccountService {
         }
         user.deactivate();
         userRepository.save(user);
+        firebaseSyncService.syncAccountStatus(
+                user.getIdentity().getFirebaseUid(),
+                AccountTypeSnapshot.BUYER,
+                user.getVerificationStatus(),
+                user.getAccountStatus()
+        );
         auditService.record(user.getIdentity(), "ACCOUNT_DEACTIVATED", "USER", String.valueOf(user.getId()),
                 Map.of("reason", "Self-deactivated by buyer"));
     }
@@ -146,6 +160,30 @@ public class AccountService {
         return adminRoleRequestRepository.findByIdentityIdOrderByCreatedAtDesc(identity.getId()).stream()
                 .map(req -> AdminRoleRequestResponse.from(req, displayName))
                 .toList();
+    }
+
+    @Transactional
+    public Map<String, String> verifyAdminWithKey(CurrentAccountPrincipal principal, String adminKey) {
+        if (principal == null || principal.getIdentityId() == null) {
+            throw new ForbiddenException("Authentication required");
+        }
+        Admin admin = adminRepository.findByIdentityId(principal.getIdentityId())
+                .orElseThrow(() -> new ForbiddenException("No Admin profile found for this account"));
+        if (admin.getAccountStatus() == AccountStatus.SUSPENDED || admin.getAccountStatus() == AccountStatus.DEACTIVATED) {
+            throw new ForbiddenException("Suspended or deactivated admin accounts must be reactivated by an active Admin with the security key");
+        }
+        adminKeyValidator.requireValid(adminKey, "Invalid admin security key");
+        admin.approveVerification();
+        adminRepository.save(admin);
+        firebaseSyncService.syncAccountStatusSafely(
+                admin.getIdentity().getFirebaseUid(),
+                AccountTypeSnapshot.ADMIN,
+                admin.getVerificationStatus(),
+                admin.getAccountStatus()
+        );
+        auditService.record(admin.getIdentity(), "ADMIN_VERIFIED_WITH_KEY", "ADMIN",
+                String.valueOf(admin.getId()), Map.of("email", admin.getIdentity().getEmail()));
+        return Map.of("message", "Admin account verified successfully", "verificationStatus", admin.getVerificationStatus().name());
     }
 
     private String resolveDisplayName(AccountIdentity identity) {

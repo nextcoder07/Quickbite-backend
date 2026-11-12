@@ -12,13 +12,13 @@ import com.quickbite.common.enums.AccountTypeSnapshot;
 import com.quickbite.common.enums.DeletionRequestStatus;
 import com.quickbite.common.enums.ShopStatus;
 import com.quickbite.common.enums.VerificationStatus;
+import com.quickbite.common.exception.BadRequestException;
 import com.quickbite.common.exception.ConflictException;
 import com.quickbite.common.exception.ForbiddenException;
 import com.quickbite.common.exception.ResourceNotFoundException;
 import com.quickbite.delivery.DeliveryPartner;
 import com.quickbite.delivery.DeliveryPartnerRepository;
 import com.quickbite.identity.dto.AuthResponse;
-import com.quickbite.identity.dto.LoginRequest;
 import com.quickbite.identity.dto.SignupRequest;
 import com.quickbite.security.CurrentAccountPrincipal;
 import com.quickbite.shop.Shop;
@@ -26,14 +26,11 @@ import com.quickbite.shop.ShopOwner;
 import com.quickbite.shop.ShopOwnerRepository;
 import com.quickbite.shop.ShopRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 
 @Service
 public class AuthService {
@@ -44,10 +41,10 @@ public class AuthService {
     private final ShopOwnerRepository shopOwnerRepository;
     private final AdminRepository adminRepository;
     private final AuditService auditService;
-    private final PasswordEncoder passwordEncoder;
     private final ShopRepository shopRepository;
     private final AccountDeletionRequestRepository deletionRequestRepository;
     private final AdminKeyValidator adminKeyValidator;
+    private final FirebaseAccountSyncService firebaseSyncService;
 
     public AuthService(
             AccountIdentityRepository identityRepository,
@@ -57,7 +54,8 @@ public class AuthService {
             AdminRepository adminRepository,
             AuditService auditService) {
         this(identityRepository, userRepository, deliveryPartnerRepository, shopOwnerRepository,
-                adminRepository, auditService, new BCryptPasswordEncoder(), null, null, new AdminKeyValidator(""));
+                adminRepository, auditService, null, null,
+                new AdminKeyValidator(""), new FirebaseAccountSyncService(false));
     }
 
     public AuthService(
@@ -69,7 +67,22 @@ public class AuthService {
             AuditService auditService,
             AdminKeyValidator adminKeyValidator) {
         this(identityRepository, userRepository, deliveryPartnerRepository, shopOwnerRepository,
-                adminRepository, auditService, new BCryptPasswordEncoder(), null, null, adminKeyValidator);
+                adminRepository, auditService, null, null,
+                adminKeyValidator, new FirebaseAccountSyncService(false));
+    }
+
+    public AuthService(
+            AccountIdentityRepository identityRepository,
+            UserRepository userRepository,
+            DeliveryPartnerRepository deliveryPartnerRepository,
+            ShopOwnerRepository shopOwnerRepository,
+            AdminRepository adminRepository,
+            AuditService auditService,
+            AdminKeyValidator adminKeyValidator,
+            FirebaseAccountSyncService firebaseSyncService) {
+        this(identityRepository, userRepository, deliveryPartnerRepository, shopOwnerRepository,
+                adminRepository, auditService, null, null,
+                adminKeyValidator, firebaseSyncService);
     }
 
     @Autowired
@@ -80,67 +93,106 @@ public class AuthService {
             ShopOwnerRepository shopOwnerRepository,
             AdminRepository adminRepository,
             AuditService auditService,
-            PasswordEncoder passwordEncoder,
             ShopRepository shopRepository,
             AccountDeletionRequestRepository deletionRequestRepository,
-            AdminKeyValidator adminKeyValidator) {
+            AdminKeyValidator adminKeyValidator,
+            FirebaseAccountSyncService firebaseSyncService) {
         this.identityRepository = identityRepository;
         this.userRepository = userRepository;
         this.deliveryPartnerRepository = deliveryPartnerRepository;
         this.shopOwnerRepository = shopOwnerRepository;
         this.adminRepository = adminRepository;
         this.auditService = auditService;
-        this.passwordEncoder = passwordEncoder;
         this.shopRepository = shopRepository;
         this.deletionRequestRepository = deletionRequestRepository;
         this.adminKeyValidator = adminKeyValidator != null ? adminKeyValidator : new AdminKeyValidator("");
+        this.firebaseSyncService = firebaseSyncService != null ? firebaseSyncService : new FirebaseAccountSyncService(false);
+    }
+
+    public boolean isFirebaseAuthEnabled() {
+        return firebaseSyncService.isActive();
     }
 
     @Transactional
-    public AuthResponse registerProfile(SignupRequest request) {
+    public AuthResponse registerFirebasePrincipal(CurrentAccountPrincipal principal, SignupRequest request) {
+        if (principal == null || principal.getFirebaseUid() == null || principal.getFirebaseUid().isBlank()) {
+            throw new ForbiddenException("Firebase authentication token is required to register an account");
+        }
+        String verifiedEmail = principal.getEmail() != null ? principal.getEmail().toLowerCase().trim() : null;
+        if (verifiedEmail == null || verifiedEmail.isBlank()) {
+            throw new BadRequestException("Authenticated Firebase token does not contain an email address");
+        }
+        if (request.email() != null && !request.email().isBlank()
+                && !request.email().trim().equalsIgnoreCase(verifiedEmail)) {
+            throw new ForbiddenException("Signup email must match the authenticated Firebase user email");
+        }
+        if (request.accountType() == null) {
+            throw new BadRequestException("Account profile type is required");
+        }
+
+        AdminSignupDecision adminDecision = evaluateAdminSignup(request);
+        String displayName = request.displayName().trim();
+        String phone = (request.phone() != null && !request.phone().isBlank()) ? request.phone().trim() : null;
+
+        AccountIdentity identity = resolveOrCreateIdentityForSignup(principal.getFirebaseUid(), verifiedEmail);
+        return persistRoleProfileAndSync(identity, displayName, phone, request, adminDecision);
+    }
+
+    private record AdminSignupDecision(VerificationStatus initialVerification) {}
+
+    private AdminSignupDecision evaluateAdminSignup(SignupRequest request) {
         boolean hasAdminKey = request.adminKey() != null && !request.adminKey().isBlank();
         VerificationStatus adminInitialVerification = VerificationStatus.PENDING;
-
         if (request.accountType() == AccountTypeSnapshot.ADMIN && hasAdminKey) {
             adminKeyValidator.requireValid(request.adminKey(), "Invalid admin security key provided");
             adminInitialVerification = VerificationStatus.APPROVED;
         }
+        return new AdminSignupDecision(adminInitialVerification);
+    }
 
-        String normalizedEmail = request.email().toLowerCase().trim();
-        String uid = (request.firebaseUid() != null && !request.firebaseUid().isBlank())
-                ? request.firebaseUid().trim()
-                : "uid-" + UUID.randomUUID().toString().substring(0, 12);
+    private AccountIdentity resolveOrCreateIdentityForSignup(String firebaseUid, String normalizedEmail) {
+        AccountIdentity existing = checkExistingIdentityConflicts(firebaseUid, normalizedEmail);
+        if (existing != null) {
+            return existing;
+        }
+        return identityRepository.saveAndFlush(new AccountIdentity(firebaseUid, normalizedEmail));
+    }
 
-        Optional<AccountIdentity> existingByUid = identityRepository.findByFirebaseUid(uid);
+    private AccountIdentity checkExistingIdentityConflicts(String firebaseUid, String normalizedEmail) {
+        Optional<AccountIdentity> existingByUid = firebaseUid != null
+                ? identityRepository.findByFirebaseUid(firebaseUid)
+                : Optional.empty();
         Optional<AccountIdentity> existingByEmail = identityRepository.findByEmailIgnoreCase(normalizedEmail);
 
-        AccountIdentity identity;
-        if (existingByUid.isPresent()) {
-            identity = existingByUid.get();
-        } else if (existingByEmail.isPresent()) {
-            identity = existingByEmail.get();
-        } else {
-            AccountIdentity newIdentity = new AccountIdentity(uid, normalizedEmail);
-            if (request.password() != null && !request.password().isBlank()) {
-                newIdentity.setPasswordHash(passwordEncoder.encode(request.password()));
+        if (existingByUid.isPresent() && existingByEmail.isPresent()
+                && !existingByUid.get().getId().equals(existingByEmail.get().getId())) {
+            throw new ConflictException("Provided Firebase UID and email belong to different accounts");
+        }
+
+        AccountIdentity existingIdentity = existingByUid.or(() -> existingByEmail).orElse(null);
+        if (existingIdentity != null) {
+            if (existingIdentity.getId() != null) {
+                assertNoExistingProfile(existingIdentity.getId());
             }
-            identity = identityRepository.saveAndFlush(newIdentity);
+            if (firebaseUid != null && !firebaseUid.isBlank() && !firebaseUid.equals(existingIdentity.getFirebaseUid())) {
+                existingIdentity.updateFirebaseUid(firebaseUid);
+                existingIdentity = identityRepository.saveAndFlush(existingIdentity);
+            }
         }
+        return existingIdentity;
+    }
 
-        if (identity.getId() != null) {
-            assertNoExistingProfile(identity.getId());
-        }
-
-        if (request.password() != null && !request.password().isBlank() &&
-                (identity.getPasswordHash() == null || identity.getPasswordHash().isBlank())) {
-            identity.setPasswordHash(passwordEncoder.encode(request.password()));
-            identity = identityRepository.saveAndFlush(identity);
-        }
-
+    private AuthResponse persistRoleProfileAndSync(
+            AccountIdentity identity,
+            String displayName,
+            String phone,
+            SignupRequest request,
+            AdminSignupDecision adminDecision) {
         Long profileId;
+        VerificationStatus initialVerification;
         switch (request.accountType()) {
             case BUYER -> {
-                User newBuyer = new User(identity, request.displayName(), request.phone());
+                User newBuyer = new User(identity, displayName, phone);
                 if (request.defaultAddress() != null || request.defaultLatitude() != null || request.defaultLongitude() != null) {
                     newBuyer.updateDeliveryLocation(request.defaultAddress(), request.defaultLatitude(), request.defaultLongitude());
                 }
@@ -149,36 +201,47 @@ public class AuthService {
                 }
                 User buyer = userRepository.saveAndFlush(newBuyer);
                 profileId = buyer.getId();
+                initialVerification = VerificationStatus.APPROVED;
             }
             case DELIVERY_PARTNER -> {
-                DeliveryPartner dp = new DeliveryPartner(
-                        identity,
-                        request.displayName(),
-                        request.phone(),
-                        request.vehicleDetails(),
-                        request.serviceArea()
-                );
+                String vehicle = request.vehicleDetails() != null && !request.vehicleDetails().isBlank()
+                        ? request.vehicleDetails().trim()
+                        : null;
+                String area = request.serviceArea() != null && !request.serviceArea().isBlank()
+                        ? request.serviceArea().trim()
+                        : null;
+                DeliveryPartner dp = new DeliveryPartner(identity, displayName, phone, vehicle, area);
                 dp = deliveryPartnerRepository.saveAndFlush(dp);
                 profileId = dp.getId();
+                initialVerification = dp.getVerificationStatus();
             }
             case SHOP_OWNER -> {
-                ShopOwner so = shopOwnerRepository.saveAndFlush(new ShopOwner(identity, request.displayName(), request.phone()));
+                ShopOwner so = shopOwnerRepository.saveAndFlush(new ShopOwner(identity, displayName, phone));
                 profileId = so.getId();
+                initialVerification = VerificationStatus.PENDING;
             }
             case ADMIN -> {
                 Admin admin = adminRepository.saveAndFlush(new Admin(
                         identity,
-                        request.displayName(),
-                        adminInitialVerification,
+                        displayName,
+                        adminDecision.initialVerification(),
                         request.adminRequestNote()
                 ));
                 profileId = admin.getId();
+                initialVerification = admin.getVerificationStatus();
             }
             default -> throw new ForbiddenException("Unsupported account profile type");
         }
 
+        firebaseSyncService.syncAccountStatus(
+                identity.getFirebaseUid(),
+                request.accountType(),
+                initialVerification,
+                AccountStatus.ACTIVE
+        );
+
         String auditAction = request.accountType() == AccountTypeSnapshot.ADMIN
-                ? (adminInitialVerification == VerificationStatus.APPROVED ? "ADMIN_CREATED_WITH_KEY" : "ADMIN_ACCESS_REQUESTED")
+                ? (adminDecision.initialVerification() == VerificationStatus.APPROVED ? "ADMIN_CREATED_WITH_KEY" : "ADMIN_ACCESS_REQUESTED")
                 : "PROFILE_CREATED";
 
         auditService.record(identity, auditAction, request.accountType().name(), String.valueOf(profileId),
@@ -187,16 +250,23 @@ public class AuthService {
         return resolveAuthResponse(identity);
     }
 
-    @Transactional(readOnly = true)
-    public AuthResponse login(LoginRequest request) {
-        String normalizedEmail = request.email().toLowerCase().trim();
-        AccountIdentity identity = identityRepository.findByEmailIgnoreCase(normalizedEmail)
-                .orElseThrow(() -> new ForbiddenException("Invalid email or password"));
+    @Transactional
+    public AuthResponse loginWithFirebasePrincipal(CurrentAccountPrincipal principal) {
+        if (principal == null || principal.getFirebaseUid() == null || principal.getFirebaseUid().isBlank()) {
+            throw new ForbiddenException("Authentication must be performed via Firebase");
+        }
 
-        if (identity.getPasswordHash() != null && !identity.getPasswordHash().isBlank()) {
-            if (request.password() == null || !passwordEncoder.matches(request.password(), identity.getPasswordHash())) {
-                throw new ForbiddenException("Invalid email or password");
-            }
+        Optional<AccountIdentity> identityOpt = identityRepository.findByFirebaseUid(principal.getFirebaseUid());
+        if (identityOpt.isEmpty() && principal.getEmail() != null && !principal.getEmail().isBlank()) {
+            identityOpt = identityRepository.findByEmailIgnoreCase(principal.getEmail().toLowerCase().trim());
+        }
+
+        AccountIdentity identity = identityOpt.orElseThrow(() -> new ResourceNotFoundException(
+                "No QuickBite profile found in Supabase for this Firebase account. Please sign up first."));
+
+        if (!principal.getFirebaseUid().equals(identity.getFirebaseUid())) {
+            identity.updateFirebaseUid(principal.getFirebaseUid());
+            identity = identityRepository.saveAndFlush(identity);
         }
 
         AuthResponse response = resolveAuthResponse(identity);
@@ -204,8 +274,15 @@ public class AuthService {
             throw new ForbiddenException("This account has been deactivated and removed from the platform");
         }
 
+        firebaseSyncService.syncAccountStatus(
+                identity.getFirebaseUid(),
+                response.accountType(),
+                response.verificationStatus(),
+                response.status()
+        );
+
         auditService.record(identity, "USER_LOGIN", response.accountType() != null ? response.accountType().name() : "IDENTITY",
-                String.valueOf(response.profileId()), Map.of("email", normalizedEmail));
+                String.valueOf(response.profileId()), Map.of("email", identity.getEmail()));
 
         return response;
     }
@@ -257,7 +334,7 @@ public class AuthService {
     @Transactional(readOnly = true)
     public AuthResponse resolveAuthResponse(AccountIdentity identity) {
         Long id = identity.getId();
-        String token = "dev-token-" + identity.getEmail();
+        String token = null;
         boolean deletionPending = deletionRequestRepository != null
                 && deletionRequestRepository.existsByRequesterIdAndStatus(id, DeletionRequestStatus.PENDING);
 

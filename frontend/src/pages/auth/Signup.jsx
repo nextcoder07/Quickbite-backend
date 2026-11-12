@@ -5,6 +5,7 @@ import { authService } from '../../services/AuthService';
 import { RolePolicyFactory } from '../../policies/RolePolicy';
 import { LocationPicker } from '../../components/LocationPicker';
 import { FoodInterestSelector } from '../../components/FoodInterestSelector';
+import { PasswordInput } from '../../components/PasswordInput';
 import { User, Store, Bike, Shield, Sparkles, ArrowRight, ShieldAlert, KeyRound } from 'lucide-react';
 
 export const Signup = () => {
@@ -20,6 +21,7 @@ export const Signup = () => {
   const [vehicleDetails, setVehicleDetails] = useState('');
   const [serviceArea, setServiceArea] = useState('');
   const [foodInterests, setFoodInterests] = useState('');
+  const [adminSetupMode, setAdminSetupMode] = useState('KEY'); // KEY | APPROVAL
   const [adminKey, setAdminKey] = useState('');
   const [adminRequestNote, setAdminRequestNote] = useState('');
   const [buyerLocation, setBuyerLocation] = useState({ address: '', latitude: null, longitude: null });
@@ -40,6 +42,10 @@ export const Signup = () => {
       setError('Passwords do not match.');
       return;
     }
+    if (accountType === 'ADMIN' && adminSetupMode === 'KEY' && !adminKey.trim()) {
+      setError('Please enter the Admin Security Key or choose "Request Admin Verification".');
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -57,8 +63,8 @@ export const Signup = () => {
         foodInterests: accountType === 'BUYER' && foodInterests.trim() ? foodInterests.trim() : null,
         vehicleDetails: accountType === 'DELIVERY_PARTNER' ? vehicleDetails.trim() || null : null,
         serviceArea: accountType === 'DELIVERY_PARTNER' ? serviceArea.trim() || null : null,
-        adminKey: accountType === 'ADMIN' && adminKey.trim() ? adminKey.trim() : null,
-        adminRequestNote: accountType === 'ADMIN' && adminRequestNote.trim() ? adminRequestNote.trim() : null,
+        adminKey: accountType === 'ADMIN' && adminSetupMode === 'KEY' ? adminKey.trim() : null,
+        adminRequestNote: accountType === 'ADMIN' && adminSetupMode === 'APPROVAL' && adminRequestNote.trim() ? adminRequestNote.trim() : null,
       };
 
       const registeredAccount = await authService.signup(payload);
@@ -195,7 +201,7 @@ export const Signup = () => {
               >
                 <KeyRound size={14} style={{ flexShrink: 0 }} />
                 <span>
-                  Enter the environment Admin Security Key for instant Admin activation, or leave it blank to request permission from existing Admins.
+                  Choose Option 1 to activate immediately with the environment Admin Security Key, or Option 2 to submit a request for existing Admins to approve.
                 </span>
               </div>
             )}
@@ -205,6 +211,8 @@ export const Signup = () => {
             <label className="form-label">Full Name</label>
             <input
               type="text"
+              name="name"
+              autoComplete="name"
               className="form-input"
               placeholder="e.g. Aarav Sharma"
               value={displayName}
@@ -217,6 +225,8 @@ export const Signup = () => {
             <label className="form-label">Email Address</label>
             <input
               type="email"
+              name="email"
+              autoComplete="email"
               className="form-input"
               placeholder="e.g. name@example.com"
               value={email}
@@ -228,23 +238,23 @@ export const Signup = () => {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div className="form-group">
               <label className="form-label">Password</label>
-              <input
-                type="password"
-                className="form-input"
+              <PasswordInput
                 placeholder="Min 6 characters"
+                minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="new-password"
                 required
               />
             </div>
             <div className="form-group">
               <label className="form-label">Confirm Password</label>
-              <input
-                type="password"
-                className="form-input"
+              <PasswordInput
                 placeholder="Re-enter password"
+                minLength={6}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
                 required
               />
             </div>
@@ -255,6 +265,8 @@ export const Signup = () => {
               <label className="form-label">Phone Number (Optional)</label>
               <input
                 type="tel"
+                name="tel"
+                autoComplete="tel"
                 className="form-input"
                 placeholder="e.g. +91 9876543210"
                 value={phone}
@@ -314,32 +326,81 @@ export const Signup = () => {
           )}
 
           {accountType === 'ADMIN' && (
-            <>
-              <div className="form-group">
-                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <KeyRound size={13} /> Admin Security Key (Optional — leave blank to request approval)
-                </label>
-                <input
-                  type="password"
-                  className="form-input"
-                  placeholder="Enter ADMIN_SIGNUP_KEY for instant access, or leave blank"
-                  value={adminKey}
-                  onChange={(e) => setAdminKey(e.target.value)}
-                />
+            <div
+              style={{
+                marginBottom: '16px',
+                padding: '14px',
+                borderRadius: '10px',
+                background: 'rgba(15, 23, 42, 0.45)',
+                border: '1px solid var(--border-subtle)',
+              }}
+            >
+              <label className="form-label" style={{ marginBottom: '8px', display: 'block' }}>
+                CHOOSE ADMIN SETUP OPTION
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => setAdminSetupMode('KEY')}
+                  style={{
+                    padding: '10px',
+                    borderRadius: '8px',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    border: `1px solid ${adminSetupMode === 'KEY' ? '#a855f7' : 'var(--border-subtle)'}`,
+                    background: adminSetupMode === 'KEY' ? 'rgba(168, 85, 247, 0.16)' : 'transparent',
+                    color: '#fff',
+                  }}
+                >
+                  Option 1: By Admin Key
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdminSetupMode('APPROVAL');
+                    setAdminKey('');
+                  }}
+                  style={{
+                    padding: '10px',
+                    borderRadius: '8px',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    border: `1px solid ${adminSetupMode === 'APPROVAL' ? 'var(--primary)' : 'var(--border-subtle)'}`,
+                    background: adminSetupMode === 'APPROVAL' ? 'var(--primary-subtle)' : 'transparent',
+                    color: '#fff',
+                  }}
+                >
+                  Option 2: By Admin Verification
+                </button>
               </div>
-              {!adminKey.trim() && (
-                <div className="form-group">
-                  <label className="form-label">Why are you requesting Admin permission? (Optional)</label>
+
+              {adminSetupMode === 'KEY' ? (
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <KeyRound size={13} /> Admin Security Key
+                  </label>
+                  <PasswordInput
+                    placeholder="Enter ADMIN_SIGNUP_KEY for instant activation"
+                    value={adminKey}
+                    onChange={(e) => setAdminKey(e.target.value)}
+                    required
+                  />
+                </div>
+              ) : (
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Request Note for Existing Admins (Optional)</label>
                   <input
                     type="text"
                     className="form-input"
-                    placeholder="e.g. Operations lead joining moderation team"
+                    placeholder="e.g. Operations lead waiting for Admin approval"
                     value={adminRequestNote}
                     onChange={(e) => setAdminRequestNote(e.target.value)}
                   />
                 </div>
               )}
-            </>
+            </div>
           )}
 
           <button

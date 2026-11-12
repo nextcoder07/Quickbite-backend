@@ -1,9 +1,10 @@
 import { BaseService } from './BaseService';
 import { AccountFactory } from '../models/Account';
-import { AuthenticationError } from '../errors/AppErrors';
+import { AuthenticationError, ValidationError } from '../errors/AppErrors';
+import { firebaseAuthGateway } from '../config/firebase';
 
 /**
- * Service encapsulating Authentication & Identity operations.
+ * Service encapsulating Firebase Authentication & QuickBite Supabase Profile synchronization.
  * Returns strongly typed Account domain model instances.
  */
 export class AuthService extends BaseService {
@@ -11,6 +12,7 @@ export class AuthService extends BaseService {
     super('/auth');
     this.USER_STORAGE_KEY = 'qb_user';
     this.TOKEN_STORAGE_KEY = 'qb_token';
+    this.client.setTokenProvider(() => firebaseAuthGateway.getActiveIdToken(false));
   }
 
   getStoredToken() {
@@ -28,7 +30,7 @@ export class AuthService extends BaseService {
   }
 
   storeSession(accountData) {
-    if (!accountData) return;
+    if (!accountData) return null;
     const account = accountData.accountType ? AccountFactory.create(accountData) : accountData;
     if (account.token) {
       localStorage.setItem(this.TOKEN_STORAGE_KEY, account.token);
@@ -45,43 +47,92 @@ export class AuthService extends BaseService {
     this.client.clearCache();
   }
 
-  async getCurrentUser() {
-    const token = this.getStoredToken();
-    if (!token) {
-      throw new AuthenticationError('No stored token found');
+  async getCurrentUser(forceRefreshToken = false) {
+    const firebaseToken = await firebaseAuthGateway.getActiveIdToken(forceRefreshToken);
+    if (!firebaseToken) {
+      this.clearSession();
+      throw new AuthenticationError('No active Firebase session found');
     }
-    const rawData = await this.get('/me', { timeout: 4000 });
-    const account = AccountFactory.create({ ...rawData, token });
+
+    localStorage.setItem(this.TOKEN_STORAGE_KEY, firebaseToken);
+    const rawData = await this.get('/me', { skipCache: true, timeout: 45000 });
+    const account = AccountFactory.create({ ...rawData, token: firebaseToken });
     this.storeSession(account);
     return account;
   }
 
   async loginWithPassword(email, password) {
-    const rawData = await this.post('/login', { email: String(email || '').trim(), password });
-    const account = AccountFactory.create(rawData);
-    this.storeSession(account);
-    return account;
+    const trimmedEmail = String(email || '').trim();
+    if (!trimmedEmail || !password) {
+      throw new ValidationError('Email and password are required.');
+    }
+
+    const { user, idToken } = await firebaseAuthGateway.signIn(trimmedEmail, password);
+
+    try {
+      const rawData = await this.post(
+        '/login',
+        {},
+        { Authorization: `Bearer ${idToken}` }
+      );
+      const refreshedToken = await firebaseAuthGateway.refreshToken(user);
+      const account = AccountFactory.create({ ...rawData, token: refreshedToken });
+      this.storeSession(account);
+      return account;
+    } catch (err) {
+      await firebaseAuthGateway.signOut();
+      this.clearSession();
+      throw err;
+    }
   }
 
   async signup(signupData) {
-    const rawData = await this.post('/signup', signupData);
-    const account = AccountFactory.create(rawData);
-    this.storeSession(account);
-    return account;
+    const email = String(signupData?.email || '').trim();
+    const displayName = String(signupData?.displayName || '').trim();
+    const password = signupData?.password || '';
+
+    if (!displayName || !email || !password) {
+      throw new ValidationError('Full Name, Email, and Password are required.');
+    }
+    if (password.length < 6) {
+      throw new ValidationError('Password must be at least 6 characters.');
+    }
+
+    const { user, idToken } = await firebaseAuthGateway.signUp(email, password, displayName);
+
+    try {
+      // Never transmit raw password to the REST backend; Firebase holds credentials securely
+      const { password: _omittedPassword, ...profilePayload } = signupData;
+      const rawData = await this.post(
+        '/signup',
+        { ...profilePayload, email },
+        { Authorization: `Bearer ${idToken}` }
+      );
+      const refreshedToken = await firebaseAuthGateway.refreshToken(user);
+      const account = AccountFactory.create({ ...rawData, token: refreshedToken });
+      this.storeSession(account);
+      return account;
+    } catch (err) {
+      await firebaseAuthGateway.rollbackUser(user);
+      await firebaseAuthGateway.signOut();
+      this.clearSession();
+      throw err;
+    }
   }
 
   async logout() {
     try {
-      if (this.getStoredToken()) {
-        await this.post('/logout', {});
+      const activeToken = await firebaseAuthGateway.getActiveIdToken(false);
+      if (activeToken) {
+        await this.post('/logout', {}, { Authorization: `Bearer ${activeToken}` });
       }
     } catch {
-      // Best-effort server audit log; always clear client session
+      // Best-effort server audit log; always sign out from Firebase & clear local session
     } finally {
+      await firebaseAuthGateway.signOut().catch(() => {});
       this.clearSession();
     }
   }
 }
 
 export const authService = new AuthService();
-

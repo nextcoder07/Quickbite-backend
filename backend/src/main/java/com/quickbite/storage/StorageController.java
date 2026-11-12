@@ -27,17 +27,17 @@ public class StorageController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "folder", defaultValue = "general") String folder) throws IOException {
 
-        String pathOrDataUrl = storageService.uploadImage(
+        String objectKey = storageService.uploadImage(
                 folder,
                 file.getOriginalFilename(),
                 file.getBytes(),
                 file.getContentType()
         );
 
-        String publicUrl = storageService.getPublicUrl(pathOrDataUrl);
+        String publicUrl = storageService.getPublicUrl(objectKey);
 
         return ResponseEntity.ok(Map.of(
-                "key", pathOrDataUrl,
+                "key", objectKey,
                 "url", publicUrl
         ));
     }

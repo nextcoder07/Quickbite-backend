@@ -37,8 +37,8 @@ export class DeliveryService extends BaseService {
     return await this.client.post('/account/deletion-request', { reason });
   }
 
-  async getMyDeletionRequests() {
-    return await this.client.get('/account/deletion-request');
+  async getMyDeletionRequests(options = {}) {
+    return await this.client.get('/account/deletion-request', {}, options);
   }
 }
 

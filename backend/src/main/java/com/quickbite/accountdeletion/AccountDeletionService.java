@@ -5,9 +5,11 @@ import com.quickbite.accountdeletion.dto.DeletionRequestResponse;
 import com.quickbite.administration.Admin;
 import com.quickbite.administration.AdminRepository;
 import com.quickbite.audit.AuditService;
+import com.quickbite.common.enums.AccountStatus;
 import com.quickbite.common.enums.AccountTypeSnapshot;
 import com.quickbite.common.enums.DeletionRequestStatus;
 import com.quickbite.common.enums.DeliveryStatus;
+import com.quickbite.common.enums.VerificationStatus;
 import com.quickbite.common.exception.ConflictException;
 import com.quickbite.common.exception.ForbiddenException;
 import com.quickbite.common.exception.ResourceNotFoundException;
@@ -15,6 +17,7 @@ import com.quickbite.delivery.DeliveryAssignmentRepository;
 import com.quickbite.delivery.DeliveryPartnerRepository;
 import com.quickbite.identity.AccountIdentity;
 import com.quickbite.identity.AccountIdentityRepository;
+import com.quickbite.identity.FirebaseAccountSyncService;
 import com.quickbite.security.CurrentAccountPrincipal;
 import com.quickbite.shop.ShopOwnerRepository;
 import com.quickbite.shop.ShopRepository;
@@ -35,6 +38,7 @@ public class AccountDeletionService {
     private final DeliveryAssignmentRepository deliveryAssignmentRepository;
     private final AdminRepository adminRepository;
     private final AuditService auditService;
+    private final FirebaseAccountSyncService firebaseSyncService;
 
     public AccountDeletionService(
             AccountDeletionRequestRepository deletionRequestRepository,
@@ -44,7 +48,8 @@ public class AccountDeletionService {
             DeliveryPartnerRepository deliveryPartnerRepository,
             DeliveryAssignmentRepository deliveryAssignmentRepository,
             AdminRepository adminRepository,
-            AuditService auditService) {
+            AuditService auditService,
+            FirebaseAccountSyncService firebaseSyncService) {
         this.deletionRequestRepository = deletionRequestRepository;
         this.identityRepository = identityRepository;
         this.shopOwnerRepository = shopOwnerRepository;
@@ -53,6 +58,7 @@ public class AccountDeletionService {
         this.deliveryAssignmentRepository = deliveryAssignmentRepository;
         this.adminRepository = adminRepository;
         this.auditService = auditService;
+        this.firebaseSyncService = firebaseSyncService != null ? firebaseSyncService : new FirebaseAccountSyncService(false);
     }
 
     @Transactional
@@ -115,6 +121,12 @@ public class AccountDeletionService {
                     });
                     so.deactivate();
                     shopOwnerRepository.save(so);
+                    firebaseSyncService.syncAccountStatusSafely(
+                            so.getIdentity().getFirebaseUid(),
+                            AccountTypeSnapshot.SHOP_OWNER,
+                            VerificationStatus.SUSPENDED,
+                            AccountStatus.DEACTIVATED
+                    );
                 });
             } else if (request.getRequesterType() == AccountTypeSnapshot.DELIVERY_PARTNER) {
                 deliveryPartnerRepository.findByIdentityId(request.getRequester().getId()).ifPresent(dp -> {
@@ -127,6 +139,12 @@ public class AccountDeletionService {
                     }
                     dp.deactivate();
                     deliveryPartnerRepository.save(dp);
+                    firebaseSyncService.syncAccountStatusSafely(
+                            dp.getIdentity().getFirebaseUid(),
+                            AccountTypeSnapshot.DELIVERY_PARTNER,
+                            VerificationStatus.SUSPENDED,
+                            AccountStatus.DEACTIVATED
+                    );
                 });
             }
             request.confirm(admin, note);

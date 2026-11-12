@@ -4,8 +4,14 @@ import com.quickbite.buyer.User;
 import com.quickbite.buyer.UserRepository;
 import com.quickbite.common.enums.AccountStatus;
 import com.quickbite.common.enums.AccountTypeSnapshot;
+import com.quickbite.common.enums.OrderStatus;
+import com.quickbite.feedback.Feedback;
+import com.quickbite.feedback.FeedbackRepository;
 import com.quickbite.identity.AccountIdentity;
 import com.quickbite.identity.AccountIdentityRepository;
+import com.quickbite.ordering.CustomerOrder;
+import com.quickbite.ordering.CustomerOrderRepository;
+import com.quickbite.ordering.OrderItem;
 import com.quickbite.security.CurrentAccountPrincipal;
 import com.quickbite.shop.dto.RecommendationFeedResponse;
 import org.junit.jupiter.api.Test;
@@ -31,8 +37,11 @@ class RecommendationServiceTest {
     @Autowired private ShopOwnerRepository shopOwnerRepository;
     @Autowired private ShopRepository shopRepository;
     @Autowired private ProductRepository productRepository;
+    @Autowired private CustomerOrderRepository orderRepository;
+    @Autowired private FeedbackRepository feedbackRepository;
 
     private void seedSecondApprovedShopForTest() {
+        User existingBuyer = userRepository.findAll().stream().findFirst().orElseThrow();
         AccountIdentity owner2Id = identityRepository.save(new AccountIdentity("uid-test-owner-2", "test.shop2@quickbite.com"));
         ShopOwner owner2 = shopOwnerRepository.save(new ShopOwner(owner2Id, "Elena Rossi", "9900112233"));
         Shop shop2 = new Shop(
@@ -47,7 +56,7 @@ class RecommendationServiceTest {
         shop2.approve();
         shop2.setOpen(true);
         Shop savedShop2 = shopRepository.save(shop2);
-        productRepository.save(new Product(
+        Product pizza = productRepository.save(new Product(
                 savedShop2,
                 "Margherita Sourdough Pizza",
                 "Hand-stretched fermented dough with San Marzano tomatoes and basil.",
@@ -55,6 +64,20 @@ class RecommendationServiceTest {
                 18,
                 null
         ));
+
+        CustomerOrder order = new CustomerOrder(
+                "QB-TEST-2001", existingBuyer, savedShop2,
+                new BigDecimal("240.00"), BigDecimal.ZERO, BigDecimal.ZERO, "Test order",
+                existingBuyer.getDefaultAddress(), existingBuyer.getDefaultLatitude(), existingBuyer.getDefaultLongitude()
+        );
+        order.addItem(new OrderItem(pizza, 1));
+        order.transitionTo(OrderStatus.ACCEPTED);
+        order.transitionTo(OrderStatus.PREPARING);
+        order.transitionTo(OrderStatus.READY);
+        order.transitionTo(OrderStatus.OUT_FOR_DELIVERY);
+        order.transitionTo(OrderStatus.DELIVERED);
+        order = orderRepository.save(order);
+        feedbackRepository.save(new Feedback(order, existingBuyer, 5, "Great sourdough pizza!"));
     }
 
     @Test

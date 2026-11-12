@@ -15,19 +15,20 @@ import com.quickbite.ordering.CustomerOrder;
 import com.quickbite.ordering.CustomerOrderRepository;
 import com.quickbite.ordering.OrderItem;
 import com.quickbite.shop.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 
+/**
+ * Automated test-profile fixture seeder (lives strictly in src/test so no seed data exists in main builds).
+ */
 @Component
-public class DataSeeder implements CommandLineRunner {
-
-    private static final Logger log = LoggerFactory.getLogger(DataSeeder.class);
+@Profile("test")
+public class TestDataSeeder implements CommandLineRunner {
 
     private final AccountIdentityRepository identityRepository;
     private final AdminRepository adminRepository;
@@ -40,7 +41,7 @@ public class DataSeeder implements CommandLineRunner {
     private final FeedbackRepository feedbackRepository;
     private final PasswordEncoder passwordEncoder;
 
-    public DataSeeder(
+    public TestDataSeeder(
             AccountIdentityRepository identityRepository,
             AdminRepository adminRepository,
             UserRepository userRepository,
@@ -68,20 +69,16 @@ public class DataSeeder implements CommandLineRunner {
     public void run(String... args) {
         if (adminRepository.count() > 0 || userRepository.count() > 0
                 || shopOwnerRepository.count() > 0 || deliveryPartnerRepository.count() > 0) {
-            log.info("Database already initialized. Skipping starter seed.");
             return;
         }
 
-        log.info("Seeding initial starter accounts (1 per role)...");
         String starterHash = passwordEncoder.encode("QuickBite@123");
 
-        // 1. Starter Platform Admin
         AccountIdentity adminIdentity = new AccountIdentity("uid-admin-01", "admin@quickbite.com");
         adminIdentity.setPasswordHash(starterHash);
         adminIdentity = identityRepository.save(adminIdentity);
         adminRepository.save(new Admin(adminIdentity, "Platform Operations Admin"));
 
-        // 2. Starter Buyer
         AccountIdentity buyerIdentity = new AccountIdentity("uid-buyer-01", "buyer@quickbite.com");
         buyerIdentity.setPasswordHash(starterHash);
         buyerIdentity = identityRepository.save(buyerIdentity);
@@ -90,7 +87,6 @@ public class DataSeeder implements CommandLineRunner {
         buyer.updateFoodInterests("Paneer, Biryani, Dosa");
         buyer = userRepository.save(buyer);
 
-        // 3. Starter Delivery Partner (verified & active)
         AccountIdentity dpIdentity = new AccountIdentity("uid-dp-01", "delivery@quickbite.com");
         dpIdentity.setPasswordHash(starterHash);
         dpIdentity = identityRepository.save(dpIdentity);
@@ -98,7 +94,6 @@ public class DataSeeder implements CommandLineRunner {
         dp.approveVerification();
         deliveryPartnerRepository.save(dp);
 
-        // 4. Starter Shop Owner + Approved Shop + Menu Items
         AccountIdentity ownerIdentity = new AccountIdentity("uid-owner-01", "shop@quickbite.com");
         ownerIdentity.setPasswordHash(starterHash);
         ownerIdentity = identityRepository.save(ownerIdentity);
@@ -150,7 +145,6 @@ public class DataSeeder implements CommandLineRunner {
                 "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=500&auto=format&fit=crop"
         ));
 
-        // 5. Initial delivered order & rating for starter shop/buyer
         CustomerOrder sampleOrder = new CustomerOrder(
                 "QB-SEED-1001", buyer, savedShop,
                 new BigDecimal("390.00"), BigDecimal.ZERO, BigDecimal.ZERO, "Extra mint relish",
@@ -165,7 +159,6 @@ public class DataSeeder implements CommandLineRunner {
         sampleOrder.transitionTo(OrderStatus.DELIVERED);
         sampleOrder = orderRepository.save(sampleOrder);
         feedbackRepository.save(new Feedback(sampleOrder, buyer, 5, "Best paneer tikka roll and biryani in the neighborhood!"));
-
-        log.info("Starter accounts (1 per role) seeded successfully.");
     }
 }
+

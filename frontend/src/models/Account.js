@@ -66,6 +66,10 @@ export class BuyerAccount extends ContactableAccount {
     this.foodInterests = data.foodInterests || '';
   }
 
+  isVerifiedForPlatform() {
+    return true;
+  }
+
   hasDefaultLocation() {
     return Boolean(this.defaultAddress && this.defaultAddress.trim());
   }
@@ -88,10 +92,16 @@ export class ShopOwnerAccount extends ContactableAccount {
     this.hasShop = Boolean(data.hasShop);
     this.shopId = data.shopId !== undefined && data.shopId !== null ? Number(data.shopId) : null;
     this.shopApprovalStatus = data.shopApprovalStatus || null; // PENDING, APPROVED, REJECTED, SUSPENDED
+    this.verificationStatus = data.verificationStatus || 'PENDING';
   }
 
   isVerifiedForPlatform() {
-    return this.isActive() && this.hasShop && this.shopApprovalStatus === 'APPROVED';
+    return (
+      this.isActive() &&
+      this.hasShop &&
+      this.shopApprovalStatus === 'APPROVED' &&
+      this.verificationStatus === 'APPROVED'
+    );
   }
 }
 

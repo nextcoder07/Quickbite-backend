@@ -17,7 +17,7 @@ public class PaymentWebhookController {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentWebhookController.class);
 
-    @Value("${quickbite.razorpay.webhook-secret:sample_webhook_secret_789}")
+    @Value("${quickbite.razorpay.webhook-secret:}")
     private String webhookSecret;
 
     @PostMapping

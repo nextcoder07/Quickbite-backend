@@ -11,8 +11,8 @@ export class ShopOwnerService extends BaseService {
     super('/marketplace/owner');
   }
 
-  async getMyShop() {
-    const rawData = await this.get('/shop');
+  async getMyShop(options = {}) {
+    const rawData = await this.get('/shop', options);
     return rawData ? new Shop(rawData) : null;
   }
 
