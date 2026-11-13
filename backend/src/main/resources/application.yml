@@ -47,7 +47,7 @@ quickbite:
     signup-key: ${ADMIN_SIGNUP_KEY:}
   firebase:
     enabled: ${FIREBASE_AUTH_ENABLED:true}
-    config-path: ${FIREBASE_CONFIG_PATH:firebase-adminsdk.json}
+    config-path: ${FIREBASE_CONFIG_PATH:}
     service-account-json: ${FIREBASE_SERVICE_ACCOUNT_JSON:}
     project-id: ${FIREBASE_PROJECT_ID:}
   razorpay:

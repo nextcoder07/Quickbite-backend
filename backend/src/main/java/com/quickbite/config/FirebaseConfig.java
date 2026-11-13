@@ -28,7 +28,7 @@ public class FirebaseConfig {
     @Value("${quickbite.firebase.enabled:true}")
     private boolean firebaseEnabled;
 
-    @Value("${quickbite.firebase.config-path:firebase-adminsdk.json}")
+    @Value("${quickbite.firebase.config-path:}")
     private String configPath;
 
     @Value("${quickbite.firebase.service-account-json:}")
@@ -62,8 +62,7 @@ public class FirebaseConfig {
                 InputStream serviceAccount = openServiceAccountStream();
                 if (serviceAccount == null) {
                     throw new IllegalStateException(
-                            "Firebase Admin SDK config file not found at '" + configPath
-                                    + "'. Cannot start without Firebase authentication.");
+                            "Firebase Admin credentials missing. Please set FIREBASE_SERVICE_ACCOUNT_JSON in .env/environment or provide a valid FIREBASE_CONFIG_PATH.");
                 }
 
                 try (InputStream stream = serviceAccount) {
@@ -92,16 +91,20 @@ public class FirebaseConfig {
             return new ByteArrayInputStream(decoded);
         }
 
-        File file = new File(configPath);
-        if (!file.exists()) {
-            file = new File("backend", configPath);
+        if (configPath != null && !configPath.isBlank()) {
+            File file = new File(configPath);
+            if (!file.exists()) {
+                file = new File("backend", configPath);
+            }
+            if (!file.exists()) {
+                file = new File("..", configPath);
+            }
+            if (file.exists()) {
+                return new FileInputStream(file);
+            }
+            return getClass().getClassLoader().getResourceAsStream(configPath);
         }
-        if (!file.exists()) {
-            file = new File("..", configPath);
-        }
-        if (file.exists()) {
-            return new FileInputStream(file);
-        }
-        return getClass().getClassLoader().getResourceAsStream(configPath);
+
+        return null;
     }
 }

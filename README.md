@@ -112,27 +112,63 @@ Managed via Flyway migrations (`V1__initial_schema.sql` through `V6__buyer_deliv
 
 ---
 
+## 👥 Seeded Test Accounts
+
+All accounts are pre-seeded in Firebase Authentication and Supabase PostgreSQL with password **`QuickBite@123`**:
+
+| Role | Email | Password | Profile / Details |
+| :--- | :--- | :--- | :--- |
+| **Admin** | `admin@quickbite.com` | `QuickBite@123` | Platform Operations Admin (Approvals, Disputes, Audit Logs) |
+| **Buyer** | `buyer@quickbite.com` | `QuickBite@123` | Aarav Sharma (Indiranagar, Bengaluru) |
+| **Shop Owner 1** | `shop@quickbite.com` | `QuickBite@123` | Chef Vikram Das — **Urban Spice Kitchen** (Indiranagar, 4 products) |
+| **Shop Owner 2** | `shop2@quickbite.com` | `QuickBite@123` | Meera Nair — **Brew & Bite Cafe** (Koramangala, 4 products) |
+| **Delivery Partner 1** | `delivery@quickbite.com` | `QuickBite@123` | Rohan Patel — Scooter (`KA-01-EQ-4492`) • Active |
+| **Delivery Partner 2** | `delivery2@quickbite.com` | `QuickBite@123` | Kabir Verma — Electric Bicycle (`KA-03-EB-1088`) • Active |
+
+---
+
 ## 🚀 Getting Started Locally
 
-### 1. Environment Variables
-Ensure valid credentials are configured in:
-- `backend/.env` (`SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`, `FIREBASE_CONFIG_PATH=firebase-adminsdk.json`, `FIREBASE_PROJECT_ID`, `FIREBASE_AUTH_ENABLED=true`, `ADMIN_SIGNUP_KEY`, Razorpay & Supabase Storage keys)
+### 1. Environment Variables Configuration
+Ensure configuration is set in:
+- `backend/.env` (`SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`, `FIREBASE_PROJECT_ID`, `FIREBASE_AUTH_ENABLED=true`, `ADMIN_SIGNUP_KEY`, Razorpay & Supabase Storage keys)
 - `backend/firebase-adminsdk.json` (Firebase Admin service account credentials)
-- `frontend/.env` / `frontend/.env.development` (`VITE_API_BASE_URL=http://localhost:8080/api/v1` and `VITE_FIREBASE_*` keys)
+- `frontend/.env` (`VITE_API_BASE_URL` pointing to local `http://localhost:8080/api/v1` or cloud `https://quickbite-backend-8qgw.onrender.com/api/v1`, plus Firebase client keys)
 
-### 2. Run Backend API Server
+### 2. Run Backend API Server (Spring Boot)
 ```bash
 cd backend
-mvn spring-boot:run        # Connects to Supabase PostgreSQL + Firebase Admin SDK on port 8080
+mvn spring-boot:run
 ```
-Swagger UI: `http://localhost:8080/swagger-ui.html`
+- API Base: `http://localhost:8080/api/v1`
+- Swagger UI Documentation: `http://localhost:8080/swagger-ui.html`
+- Health Endpoint: `http://localhost:8080/api/v1/health`
 
-### 3. Run Frontend Web / Electron App
+### 3. Run Frontend Web / Desktop App
 ```bash
 cd frontend
+
+# Clean installation for cloned repositories:
+npm ci
+# Or standard install:
 npm install
-npm run dev                # Starts Vite dev server on http://localhost:5173
-# or:
-npm run electron:dev       # Launches Electron desktop shell
+
+# Run web browser client (http://localhost:5173):
+npm run dev
+
+# Or run desktop Electron shell with hot-reload:
+npm run electron:dev
+
+# Build standalone Windows .exe installer/package:
+npm run dist
 ```
-`npm run dist` builds the Windows executable bundle into `dist-electron`.
+
+---
+
+## 🌐 Production Cloud Deployment
+- **Backend API**: Hosted on Render at `https://quickbite-backend-8qgw.onrender.com/api/v1`
+- **Health Check**: `https://quickbite-backend-8qgw.onrender.com/api/v1/health`
+- **Database**: Supabase Managed PostgreSQL
+- **Object Storage**: Supabase Storage (`QuickBite` bucket for storefront & food item photography)
+- **Identity & Authentication**: Firebase Authentication (Client SDK + Firebase Admin SDK with custom claims)
+
